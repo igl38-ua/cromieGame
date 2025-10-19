@@ -1,21 +1,13 @@
-; ===== hw.inc =====
-; Direcciones básicas del hardware Game Boy
-
-rP1   EQU $FF00
-rLCDC EQU $FF40
-rSTAT EQU $FF41
-rSCY  EQU $FF42
-rSCX  EQU $FF43
-rLY   EQU $FF44
-rBGP  EQU $FF47
-rOBP0 EQU $FF48
-rOBP1 EQU $FF49
-rWY   EQU $FF4A
-rWX   EQU $FF4B
-
-; Espera VBlank (simple)
-WAIT_VBLANK:
-    ld a, [rLY]
-    cp 144
-    jr c, WAIT_VBLANK
-    ret
+; --- registros HW Game Boy ---
+DEF rP1   EQU $FF00
+DEF rLCDC EQU $FF40
+DEF rSTAT EQU $FF41
+DEF rSCY  EQU $FF42
+DEF rSCX  EQU $FF43
+DEF rLY   EQU $FF44
+DEF rDMA  EQU $FF46
+DEF rBGP  EQU $FF47
+DEF rOBP0 EQU $FF48
+DEF rOBP1 EQU $FF49
+DEF rWY   EQU $FF4A
+DEF rWX   EQU $FF4B

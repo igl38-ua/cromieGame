@@ -11,7 +11,7 @@ include cfg/projectpaths.mk   # Local paths and files for the project
 PRJNAME  := game
 PAD      := 0xFF
 INCLUDE  := -Isrc -Iinclude
-ASMFLAGS := -E -Weverything
+ASMFLAGS := -Weverything
 FIXFLAGS := -v
 TARGET   := $(PRJNAME).gb
 SAV_FILE := $(PRJNAME).sav
@@ -27,7 +27,9 @@ ASMFILES := \
 	src/components.asm \
 	src/systems.asm \
 	src/map.asm \
-	src/utils.asm
+	src/utils.asm \
+	src/mapa_data.asm \
+	src/tiles_data.asm
 
 ##-----------------------------------------
 ## Configuración de recursos

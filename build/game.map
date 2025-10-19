@@ -1,0 +1,54 @@
+SUMMARY:
+	ROM0: 782 bytes used / 15602 free
+	WRAM0: 256 bytes used / 3840 free
+
+ROM0 bank #0:
+	SECTION: $0000-$00bf ($00c0 bytes) ["Pincho"]
+	         $0000 = _PinchoTiles
+	         $00c0 = _PinchoTilesEnd
+	SECTION: $00c0-$00f7 ($0038 bytes) ["utils"]
+	         $00c0 = wait_vBlank
+	         $00c0 = wait_vBlank.loop
+	         $00c7 = limpiar_OAM
+	         $00cd = limpiar_OAM.clroam
+	         $00d2 = memcpy
+	         $00d2 = memcpy.loop
+	         $00d9 = copiar_a_VRAM
+	         $00dc = copiar_a_VRAM.loop
+	         $00e5 = DoOamDma_template
+	         $00eb = DoOamDma_template.wait
+	         $00ef = apagar_LCD
+	         $00f3 = encender_LCD
+	EMPTY: $00f8-$00ff ($0008 bytes)
+	SECTION: $0100-$014f ($0050 bytes) ["Header"]
+	SECTION: $0150-$02b7 ($0168 bytes) ["Mapa Base"]
+	         $0150 = _MapaBase
+	         $02b8 = _MapaBaseEnd
+	SECTION: $02b8-$02ec ($0035 bytes) ["Main"]
+	         $02b8 = main
+	         $02bb = main.loop
+	         $02c7 = Init
+	         $02e6 = break_aqui
+	SECTION: $02ed-$0315 ($0029 bytes) ["Systems"]
+	         $02ed = ReadInput
+	         $02ee = UpdateMovement
+	         $02f0 = UpdateMovement.loop
+	         $030f = UpdateMovement.next
+	         $0314 = UpdateMovement.done
+	         $0315 = UpdateRender
+	EMPTY: $0316-$3fff ($3cea bytes)
+	TOTAL EMPTY: $3cf2 bytes
+
+WRAM0 bank #0:
+	SECTION: $c000-$c09f ($00a0 bytes) ["ShadowOAM"]
+	         $c000 = ShadowOAM
+	SECTION: $c0a0-$c0ef ($0050 bytes) ["Components"]
+	         $c0a0 = pos_x
+	         $c0b0 = pos_y
+	         $c0c0 = vel_x
+	         $c0d0 = vel_y
+	         $c0e0 = spr_tile
+	SECTION: $c0f0-$c0ff ($0010 bytes) ["ECS"]
+	         $c0f0 = comp_mask
+	EMPTY: $c100-$cfff ($0f00 bytes)
+	TOTAL EMPTY: $0f00 bytes
