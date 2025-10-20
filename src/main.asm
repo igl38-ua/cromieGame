@@ -112,6 +112,8 @@ Init::
     ; 3) Paleta de fondo
     ld   a, %11100100
     ldh  [rBGP], a             ; $FF47
+    ldh  [rOBP0], a            ; $FF48
+    ldh  [rOBP1], a            ; $FF48
 
     ; 4) (Opcional) Cargar tus tiles reales:
     ; ld   hl, _PinchoTiles
@@ -131,8 +133,11 @@ break_aqui:
     ldh  [rSCX], a             ; $FF43
     ldh  [rSCY], a             ; $FF42
 
+    
     ; 8) LCD ON con tile data en $8000 y BG ON (LCDC=$91)
-    ld   a, $91                ; 1001_0001b
+    ld   a, $93                ; 1001_0001b
     ldh  [rLCDC], a            ; $FF40
+
+    call UpdateRender
 
     ret
