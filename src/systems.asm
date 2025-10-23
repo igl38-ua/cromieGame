@@ -3,71 +3,57 @@ INCLUDE "include/hw.inc"
 INCLUDE "include/constants.inc"
 
 ; --- Datos de sprite del jugador (4 tiles TL,TR,BL,BR)
-; Asegúrate en assets/sprites/jewmbo.z80 de tener:
-;   DEF JEWMBO_TILE_COUNT = (jewmbo_end - jewmbo) / 16
 INCLUDE "assets/sprites/jewmbo.z80"    ; jewmbo::, jewmbo_end::, JEWMBO_TILE_COUNT
 
 ; --- Exportamos las 3 rutinas llamadas desde main.asm
 SECTION "Systems", ROM0
-EXPORT ReadInput, UpdateMovement, UpdateRender
+EXPORT ReadInput, UpdateMovement, UpdateRender, InitSprites
 
-; --- Índices de tile en VRAM para el jugador ---
-; Cargaremos 'jewmbo' en $8200 => índice base = ($8200-$8000)/16 = $20 (32)
+; --- Configuración de tiles ---
+; Cargaremos 'jewmbo' en $8200 => índice base = ($8200-$8000)/16 = $20
 DEF JEWMBO_VRAM_ADDR EQU $8200
 DEF TILE_BASE        EQU ((JEWMBO_VRAM_ADDR - $8000) / 16)
 
-DEF TILE_TL      EQU TILE_BASE + 0
-DEF TILE_TR      EQU TILE_BASE + 1
-DEF TILE_BL      EQU TILE_BASE + 2
-DEF TILE_BR      EQU TILE_BASE + 3
-
-; Compat con ejemplo.asm (2 tiles superiores)
-DEF TILE_L         EQU TILE_TL
-DEF TILE_R         EQU TILE_TR
-DEF TILE_RUN1_L    EQU TILE_TL
-DEF TILE_RUN1_R    EQU TILE_TR
-DEF TILE_RUN2_L    EQU TILE_TL
-DEF TILE_RUN2_R    EQU TILE_TR
+; Tile indices para sprite base (20–23)
+DEF TILE_TL EQU TILE_BASE + 0    ; $20
+DEF TILE_TR EQU TILE_BASE + 1    ; $21
+DEF TILE_BL EQU TILE_BASE + 2    ; $22
+DEF TILE_BR EQU TILE_BASE + 3    ; $23
 
 ; --- Variables en WRAM ---
 SECTION "Vars", WRAM0
 posX:            DS 1
 posY:            DS 1
 contador:        DS 1
-enMovimiento:    DS 1
 joypadActual:    DS 1
 sprites_inited:  DS 1
 
-; >>> Volvemos a ROM0 para el código <<<
+; -------------------------------------------------------------------
 SECTION "SystemsCode", ROM0
 
 ; -------------------------------------------------------------------
-; Joypad (mismo flujo que tu ejemplo)
+; Leer entrada del pad (igual que en ejemplo.asm)
 ReadInput::
     ld   a, $20
     ldh  [rP1], a
-    ldh  a, [rP1]      ; dummy
-    ldh  a, [rP1]      ; real
+    ldh  a, [rP1]
+    ldh  a, [rP1]
     cpl
     and  %00001111
     ld   [joypadActual], a
     ret
 
 ; -------------------------------------------------------------------
-; Movimiento básico sin colisiones (1 px cada 4 frames)
+; Movimiento básico (sin colisiones)
 UpdateMovement::
     ld   hl, contador
     inc  [hl]
 
-    xor  a
-    ld   [enMovimiento], a
-
     ld   a, [joypadActual]
     or   a
     jr   z, .done_move
-    ld   a, 1
-    ld   [enMovimiento], a
 
+    ; movimiento cada 4 frames
     ld   a, [contador]
     and  %00000011
     jr   nz, .done_move
@@ -103,151 +89,125 @@ UpdateMovement::
     ret
 
 ; -------------------------------------------------------------------
-; Render: init perezoso + compone 2×2 + copia ShadowOAM->OAM en VBlank
-; -------------------------------------------------------------------
-; Render: init perezoso + compone 2×2 + copia ShadowOAM->OAM en VBlank
+; Render del sprite base de Jewmbo (2x2 tiles fijas: 20–23)
+; === JEWMBO render 8x16 ===
+;   Sprite 0: Left half (TL=$20, BL=$22)
+;   Sprite 1: Right half (TR=$21, BR=$23)
+
 UpdateRender::
-    ; 1ª vez: carga tiles de jewmbo a VRAM, limpia OAM, etc.
-    ld   a, [sprites_inited]
-    ; or   a
-    ; jr   nz, .skip_init
-    call InitSprites
-.skip_init:
+    call wait_vBlank
 
-    ; === SIEMPRE sprite base, sin animación ===
-    ld   a, TILE_L        ; TL
-    ld   b, TILE_R        ; TR
-    ld   c, a             ; C = tile izq (TL)
-
-    ; posiciones (GB: y+16, x+8)
-    ld   hl, posY
-    ld   a, [hl]
-    add  16
-    ld   d, a
-
-    ld   hl, posX
-    ld   a, [hl]
+    ; --- Cargar posición base ---
+    ld   a, [posY]
+    add  16                  ; ajustar coordenada GB
+    ld   d, a                ; D = Y
+    ld   a, [posX]
     add  8
-    ld   e, a
+    ld   e, a                ; E = X
 
-    ; ---------- ShadowOAM (4 sprites) ----------
-    ; TL
-    ld   hl, $C000
+    ld   hl, $C000           ; ShadowOAM base
+
+    ; --- Sprite 0: izquierda (TL=$20, BL=$22) ---
     ld   a, d
-    ld   [hl+], a
+    ld   [hl+], a            ; Y
     ld   a, e
-    ld   [hl+], a
-    ld   a, c           ; TILE_L
+    ld   [hl+], a            ; X
+    ld   a, $20              ; tile superior izquierda
     ld   [hl+], a
     xor  a
-    ld   [hl], a
+    ld   [hl+], a            ; atributos
 
-    ; TR (x+8)
+    ; --- Sprite 1: derecha (TR=$21, BR=$23) ---
     ld   a, e
     add  8
     ld   e, a
-    ld   hl, $C000 + 4
     ld   a, d
-    ld   [hl+], a
+    ld   [hl+], a            ; Y
     ld   a, e
-    ld   [hl+], a
-    ld   a, b           ; TILE_R
+    ld   [hl+], a            ; X
+    ld   a, $22              ; tile superior derecha
     ld   [hl+], a
     xor  a
-    ld   [hl], a
+    ld   [hl+], a            ; atributos
 
-    ; BL (y+8)
-    ld   a, d
-    add  8
-    ld   d, a
+    
     ld   hl, $C000 + 8
-    ld   a, d
-    ld   [hl+], a
-    ld   a, e
-    sub  8
-    ld   [hl+], a
-    ld   a, TILE_BL
-    ld   [hl+], a
-    xor  a
-    ld   [hl], a
-
-    ; BR (x+8)
-    ld   a, e
-    add  8
-    ld   e, a
-    ld   hl, $C000 + 12
-    ld   a, d
-    ld   [hl+], a
-    ld   a, e
-    ld   [hl+], a
-    ld   a, TILE_BR
-    ld   [hl+], a
-    xor  a
-    ld   [hl], a
+    ld   b, 38
+    .hide_loop:
+        xor  a                 ; a = 0 -> Y=0 (fuera de pantalla)
+        ld   [hl], a
+        ld   de, 4
+        add  hl, de            ; avanzar a la siguiente entrada (Y del próximo sprite)
+        dec  b
+        jr   nz, .hide_loop
 
     ; --- Copia ShadowOAM -> OAM durante VBlank ---
-    call wait_vBlank
     call FlushOAM
     ret
 
 ; -------------------------------------------------------------------
-; Helpers
+; Inicializa VRAM/OAM (solo una vez)
 InitSprites:
-    ; pos inicial
-    ld   a, 80
-    ld   [posX], a
-    ld   a, 72
-    ld   [posY], a
-    xor  a
-    ld   [contador], a
-    ld   [enMovimiento], a
-
-    ; paletas
-    ld   a, %11100100
-    ldh  [rBGP], a
-    ldh  [rOBP0], a
-
-    ; --- Copia de tiles del jugador a VRAM $8200 (4*16 = 64 bytes) ---
-    ; Si LCD está ON, espera VBlank; si está OFF, copia directa
+    ; apaga LCD si está encendido
     ldh  a, [rLCDC]
     bit  7, a
-    jr   z, .copy_tiles          ; LCD OFF -> copiar sin esperar
+    jr   z, .lcd_off
+    res  7, a
+    ldh  [rLCDC], a
+    .lcd_off:
 
-    ; LCD ON -> entrar en VBlank
-    .waitVB:
-        ldh  a, [rLY]
-        cp   144
-        jr   c, .waitVB
+        ; posición inicial
+        ld   a, 80
+        ld   [posX], a
+        ld   a, 72
+        ld   [posY], a
+        xor  a
+        ld   [contador], a
 
-    .copy_tiles:
-        ld   hl, jewmbo              ; origen ROM
-        ld   de, JEWMBO_VRAM_ADDR    ; destino VRAM ($8200)
-        ld   c, JEWMBO_TILE_COUNT * 16   ; 64 bytes
-    .copy_loop:
-        ld   a, [hl]
+        ; paletas
+        ld   a, %11100100
+        ldh  [rBGP], a
+        ldh  [rOBP0], a
+
+        ; copiar tiles de Jewmbo (4 tiles = 64 bytes)
+        ld   hl, jewmbo
+        ld   de, JEWMBO_VRAM_ADDR
+        ld   b, 4
+    .copy_tile_loop:
+        push bc
+        ld   c, 16
+    .copy_one_tile:
+        ld   a, [hl+]
         ld   [de], a
-        inc  hl
         inc  de
         dec  c
-        jr   nz, .copy_loop
+        jr   nz, .copy_one_tile
+        pop  bc
+        dec  b
+        jr   nz, .copy_tile_loop
 
-        ; --- ShadowOAM limpio (por si acaso) ---
-        ld   hl, $C000               ; ShadowOAM
+        ; limpiar ShadowOAM
+        ld   hl, $C000
         ld   c, 160
-        .clear_oam:
-            xor  a
-            ld   [hl+], a
-            dec  c
-            jr   nz, .clear_oam
+    .clear_oam:
+        xor  a
+        ld   [hl+], a
+        dec  c
+        jr   nz, .clear_oam
 
         ld   a, 1
         ld   [sprites_inited], a
-    ret
 
-; Copia 160 bytes de ShadowOAM ($C000) a OAM ($FE00)
+        ; reactivar LCD
+        ld   a, %10010111   ; LCD ON + BG ON + OBJ ON + OBJ 8x16 + map $9800
+        ldh  [rLCDC], a
+        ret
+
+; -------------------------------------------------------------------
+; Copia ShadowOAM ($C000) a OAM ($FE00)
 FlushOAM:
-    ld   hl, $C000          ; ShadowOAM
-    ld   de, $FE00          ; OAM
+    ld   hl, $C000
+    ld   de, $FE00
     ld   b, 160
 .copy:
     ld   a, [hl+]
