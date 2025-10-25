@@ -2,25 +2,20 @@
 INCLUDE "include/hw.inc"
 INCLUDE "include/constants.inc"
 
-; --- Datos de sprite del jugador (4 tiles TL,TR,BL,BR)
-INCLUDE "assets/sprites/jewmbo.z80"    ; jewmbo::, jewmbo_end::, JEWMBO_TILE_COUNT
+INCLUDE "assets/sprites/jewmbo.z80"
 
-; --- Exportamos las 3 rutinas llamadas desde main.asm
 SECTION "Systems", ROM0
 EXPORT ReadInput, UpdateMovement, UpdateRender, InitSprites
 
-; --- Configuración de tiles ---
-; Cargaremos 'jewmbo' en $8200 => índice base = ($8200-$8000)/16 = $20
+; --- Config tiles en VRAM ---
 DEF JEWMBO_VRAM_ADDR EQU $8200
 DEF TILE_BASE        EQU ((JEWMBO_VRAM_ADDR - $8000) / 16)
-
-; Tile indices para sprite base (20–23)
 DEF TILE_TL EQU TILE_BASE + 0    ; $20
 DEF TILE_TR EQU TILE_BASE + 1    ; $21
 DEF TILE_BL EQU TILE_BASE + 2    ; $22
 DEF TILE_BR EQU TILE_BASE + 3    ; $23
 
-; --- Variables en WRAM ---
+; Variables de juego
 SECTION "Vars", WRAM0
 posX:            DS 1
 posY:            DS 1
@@ -28,14 +23,13 @@ contador:        DS 1
 joypadActual:    DS 1
 sprites_inited:  DS 1
 
-; -------------------------------------------------------------------
+; -------------------------------------------------
 SECTION "SystemsCode", ROM0
 
-; -------------------------------------------------------------------
-; Leer entrada del pad (igual que en ejemplo.asm)
+; Lee pad (4 direcciones)
 ReadInput::
     ld   a, $20
-    ldh  [rP1], a
+    ldh  [rP1], a       ; seleccionar direccionales
     ldh  a, [rP1]
     ldh  a, [rP1]
     cpl
@@ -43,8 +37,7 @@ ReadInput::
     ld   [joypadActual], a
     ret
 
-; -------------------------------------------------------------------
-; Movimiento básico (sin colisiones)
+; Movimiento simple sin colisiones
 UpdateMovement::
     ld   hl, contador
     inc  [hl]
@@ -53,34 +46,33 @@ UpdateMovement::
     or   a
     jr   z, .done_move
 
-    ; movimiento cada 4 frames
     ld   a, [contador]
     and  %00000011
     jr   nz, .done_move
 
     ld   a, [joypadActual]
-    bit  0, a
+    bit  0, a          ; derecha
     jr   z, .chkLeft
     ld   hl, posX
     inc  [hl]
     jr   .done_move
 
 .chkLeft:
-    bit  1, a
+    bit  1, a          ; izquierda
     jr   z, .chkUp
     ld   hl, posX
     dec  [hl]
     jr   .done_move
 
 .chkUp:
-    bit  2, a
+    bit  2, a          ; arriba
     jr   z, .chkDown
     ld   hl, posY
     dec  [hl]
     jr   .done_move
 
 .chkDown:
-    bit  3, a
+    bit  3, a          ; abajo
     jr   z, .done_move
     ld   hl, posY
     inc  [hl]
@@ -88,131 +80,123 @@ UpdateMovement::
 .done_move:
     ret
 
-; -------------------------------------------------------------------
-; Render del sprite base de Jewmbo (2x2 tiles fijas: 20–23)
-; === JEWMBO render 8x16 ===
-;   Sprite 0: Left half (TL=$20, BL=$22)
-;   Sprite 1: Right half (TR=$21, BR=$23)
 
+; -------------------------------------------------
+; UpdateRender
+; - Calcula posición del jugador
+; - Escribe SOLO los 2 sprites en HRAMShadowOAM
+; - Copia HRAMShadowOAM -> OAM (rellenando el resto apagado)
+; Requiere: LCD ya en modo 8x16 (bit2 de LCDC=1)
+; -------------------------------------------------
 UpdateRender::
+    ; Esperamos al VBlank al principio del frame
+    ; para que toda la escritura OAM sea estable
     call wait_vBlank
 
-    ; --- Cargar posición base ---
+    ; Calculamos coords en espacio Game Boy (offsets +16 Y, +8 X)
     ld   a, [posY]
-    add  16                  ; ajustar coordenada GB
-    ld   d, a                ; D = Y
+    add  16
+    ld   d, a          ; D = Y pantalla
     ld   a, [posX]
     add  8
-    ld   e, a                ; E = X
+    ld   e, a          ; E = X pantalla
 
-    ld   hl, $C000           ; ShadowOAM base
+    ; Escribimos al buffer HRAMShadowOAM directamente
+    ld   hl, HRAMShadowOAM
 
-    ; --- Sprite 0: izquierda (TL=$20, BL=$22) ---
-    ld   a, d
-    ld   [hl+], a            ; Y
-    ld   a, e
-    ld   [hl+], a            ; X
-    ld   a, $20              ; tile superior izquierda
+    ; --- Sprite 0 (izquierda) ---
+    ld   a, d          ; Y
+    ld   [hl+], a
+    ld   a, e          ; X
+    ld   [hl+], a
+    ld   a, TILE_TL    ; tile superior izquierda ($20)
+    ; En modo 8x16, PPU dibuja este tile y el tile siguiente ($21)
     ld   [hl+], a
     xor  a
-    ld   [hl+], a            ; atributos
+    ld   [hl+], a      ; attrs = 0
 
-    ; --- Sprite 1: derecha (TR=$21, BR=$23) ---
+    ; --- Sprite 1 (derecha) ---
     ld   a, e
     add  8
     ld   e, a
     ld   a, d
-    ld   [hl+], a            ; Y
+    ld   [hl+], a      ; Y
     ld   a, e
-    ld   [hl+], a            ; X
-    ld   a, $22              ; tile superior derecha
+    ld   [hl+], a      ; X
+    ld   a, TILE_BL    ; tile de la mitad derecha base ($22)
+    ; PPU dibuja también $23 debajo automáticamente
     ld   [hl+], a
     xor  a
-    ld   [hl+], a            ; atributos
+    ld   [hl+], a      ; attrs = 0
 
-    
-    ld   hl, $C000 + 8
-    ld   b, 38
-    .hide_loop:
-        xor  a                 ; a = 0 -> Y=0 (fuera de pantalla)
-        ld   [hl], a
-        ld   de, 4
-        add  hl, de            ; avanzar a la siguiente entrada (Y del próximo sprite)
-        dec  b
-        jr   nz, .hide_loop
-
-    ; --- Copia ShadowOAM -> OAM durante VBlank ---
-    call FlushOAM
+    ; Ahora volcamos a OAM:
+    call FlushOAM_HRAM
     ret
 
-; -------------------------------------------------------------------
-; Inicializa VRAM/OAM (solo una vez)
-InitSprites:
-    ; apaga LCD si está encendido
+
+; -------------------------------------------------
+; InitSprites
+; - Apaga LCD, copia tiles de Jewmbo a VRAM, inicializa estado, enciende LCD.
+; -------------------------------------------------
+InitSprites::
+    ; apaga LCD si está ON
     ldh  a, [rLCDC]
     bit  7, a
     jr   z, .lcd_off
     res  7, a
     ldh  [rLCDC], a
-    .lcd_off:
+.lcd_off:
 
-        ; posición inicial
-        ld   a, 80
-        ld   [posX], a
-        ld   a, 72
-        ld   [posY], a
-        xor  a
-        ld   [contador], a
+    ; estado inicial jugador
+    ld   a, 80
+    ld   [posX], a
+    ld   a, 72
+    ld   [posY], a
+    xor  a
+    ld   [contador], a
+    ld   [sprites_inited], a  ; 0 -> (no la usamos ya, pero la dejamos limpia)
 
-        ; paletas
-        ld   a, %11100100
-        ldh  [rBGP], a
-        ldh  [rOBP0], a
+    ; paletas
+    ld   a, %11100100
+    ldh  [rBGP], a
+    ldh  [rOBP0], a
 
-        ; copiar tiles de Jewmbo (4 tiles = 64 bytes)
-        ld   hl, jewmbo
-        ld   de, JEWMBO_VRAM_ADDR
-        ld   b, 4
-    .copy_tile_loop:
-        push bc
-        ld   c, 16
-    .copy_one_tile:
-        ld   a, [hl+]
-        ld   [de], a
-        inc  de
-        dec  c
-        jr   nz, .copy_one_tile
-        pop  bc
-        dec  b
-        jr   nz, .copy_tile_loop
-
-        ; limpiar ShadowOAM
-        ld   hl, $C000
-        ld   c, 160
-    .clear_oam:
-        xor  a
-        ld   [hl+], a
-        dec  c
-        jr   nz, .clear_oam
-
-        ld   a, 1
-        ld   [sprites_inited], a
-
-        ; reactivar LCD
-        ld   a, %10010111   ; LCD ON + BG ON + OBJ ON + OBJ 8x16 + map $9800
-        ldh  [rLCDC], a
-        ret
-
-; -------------------------------------------------------------------
-; Copia ShadowOAM ($C000) a OAM ($FE00)
-FlushOAM:
-    ld   hl, $C000
-    ld   de, $FE00
-    ld   b, 160
-.copy:
+    ; copiar las 4 tiles (64 bytes) de jewmbo a VRAM $8200
+    ld   hl, jewmbo
+    ld   de, JEWMBO_VRAM_ADDR
+    ld   b, 4          ; 4 tiles
+.copy_tile_loop:
+    push bc
+    ld   c, 16         ; 16 bytes por tile
+.copy_tile_bytes:
     ld   a, [hl+]
     ld   [de], a
     inc  de
+    dec  c
+    jr   nz, .copy_tile_bytes
+    pop  bc
     dec  b
-    jr   nz, .copy
+    jr   nz, .copy_tile_loop
+
+    ; inicializa HRAMShadowOAM a 0 (por si acaso antes del primer frame)
+    ld   hl, HRAMShadowOAM
+    ld   b, 8
+    xor  a
+.init_hram_loop:
+    ld   [hl+], a
+    dec  b
+    jr   nz, .init_hram_loop
+
+    ; enciende LCD en:
+    ; bit7 LCD on
+    ; bit6 Window tile map (0 = $9800, no usamos window ahora)
+    ; bit5 Window enable (0)
+    ; bit4 BG tiles from $8000
+    ; bit3 BG map $9800
+    ; bit2 OBJ size 1=8x16
+    ; bit1 OBJ enable
+    ; bit0 BG enable
+    ld   a, %10010111      ; 1 0 0 1 0 1 1 1  = $97
+    ldh  [rLCDC], a
+
     ret
