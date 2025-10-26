@@ -27,12 +27,12 @@ jewmbo::
     ; tile 0 (arriba-izquierda)
     DB $00,$00,$00,$00,$01,$01,$03,$03
     DB $03,$03,$03,$03,$07,$07,$3F,$3F
-    ; tile 1 (arriba-derecha)
-    DB $00,$00,$60,$60,$D0,$D0,$F8,$F8
-    DB $E0,$E0,$C0,$C0,$E0,$E0,$FC,$FC
     ; tile 2 (abajo-izquierda)
     DB $3F,$3F,$73,$73,$7B,$7B,$73,$73
     DB $57,$57,$07,$07,$06,$06,$06,$06
+    ; tile 1 (arriba-derecha)
+    DB $00,$00,$60,$60,$D0,$D0,$F8,$F8
+    DB $E0,$E0,$C0,$C0,$E0,$E0,$FC,$FC
     ; tile 3 (abajo-derecha)
     DB $FC,$FC,$CE,$CE,$DE,$DE,$CE,$CE
     DB $EA,$EA,$E0,$E0,$60,$60,$60,$60

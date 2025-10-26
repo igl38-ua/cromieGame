@@ -1,7 +1,6 @@
 ; ===== main.asm =====
 INCLUDE "include/hw.inc"
 INCLUDE "include/constants.inc"
-
 SECTION "Main", ROM0
 
 EXPORT main
@@ -115,17 +114,10 @@ Init::
     ldh  [rOBP0], a            ; $FF48
     ldh  [rOBP1], a            ; $FF48
 
-    ; 4) (Opcional) Cargar tus tiles reales:
-    ; ld   hl, _PinchoTiles
-    ; ld   de, $8000
-    ; ld   bc, _PinchoTilesEnd - _PinchoTiles
-    ; call copiar_a_VRAM
-
     ; 5) Asegura tiles base 01/06/07 para el mapa
     call LoadBaseTiles
 
     ; 6) Dibuja el mapa 20x18 en $9800
-break_aqui:
     call DrawMapaBase
 
     ; 7) Scroll a 0
@@ -133,11 +125,7 @@ break_aqui:
     ldh  [rSCX], a             ; $FF43
     ldh  [rSCY], a             ; $FF42
 
-    
-    ; 8) LCD ON con tile data en $8000 y BG ON (LCDC=$91)
-    ld   a, $93                ; 1001_0001b
-    ldh  [rLCDC], a            ; $FF40
-
+    call InitSprites
     call UpdateRender
 
     ret
