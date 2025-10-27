@@ -4,12 +4,16 @@ INCLUDE "include/constants.inc"
 
 ; -------------------- WRAM (variables) --------------------
 SECTION "GameStateVar", WRAM0
-EXPORT wGameState
+EXPORT wGameState, wLevelIdx
 wGameState: ds 1
+wLevelIdx:  ds 1
 
 ; -------------------- ROM0 (código) -----------------------
 SECTION "Main", ROM0
 EXPORT main
+
+; Usaremos Play_HandleSelect desde state_play.asm
+; (no hace falta IMPORT en RGBDS, basta con que esté EXPORT allí)
 
 main::
     call Init
@@ -27,6 +31,9 @@ main::
     jr   z, .doTitle 
 
     ; --- STATE_PLAY ---
+    ; Detecta SELECT (flanco) para cambiar de nivel con LCD OFF/ON
+    call Play_HandleSelect
+
     call UpdateMovement
     call UpdateRender
     jp   .loop
@@ -40,7 +47,7 @@ main::
 ; ---------------------------------------------------------------------------
 SECTION "DrawMapaBase", ROM0
 DrawMapaBase::
-    ld   hl, _MapaBase        ; origen (definido en mapa_data.asm)
+    ld   hl, _MapaBase        ; origen (definido en MapaBase.rgbds.asm)
     ld   de, $9800            ; destino (BG map 0)
     ld   b, 18                ; 18 filas
 .fila:
@@ -136,7 +143,7 @@ Init::
     ldh  [rOBP0], a            ; $FF48
     ldh  [rOBP1], a            ; $FF49
 
-    ; 5) Estas llamadas ahora las hace Play_Enter tras pulsar START:
+    ; 5) Estas llamadas ahora las hace LoadLevelCurrent/Play_Enter tras pulsar START
     ; call LoadBaseTiles
     ; call DrawMapaBase
     ; xor  a

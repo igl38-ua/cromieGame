@@ -74,6 +74,10 @@ Title_Update::
     and  KEY_START
     ret  z
 
+    ; Arrancamos siempre en el nivel 0
+    xor  a
+    ld   [wLevelIdx], a
+
     ; START en flanco: cargar primer nivel y pasar a PLAY
     call Play_Enter
     ld   a, STATE_PLAY

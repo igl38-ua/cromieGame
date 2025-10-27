@@ -2,22 +2,51 @@
 INCLUDE "include/hw.inc"
 INCLUDE "include/constants.inc"
 
+; --- WRAM: variables de input para PLAY ---
+SECTION "Play Input Vars", WRAM0
+wPlayBtnsCur:  ds 1
+wPlayBtnsPrev: ds 1
+wPlayBtnsJP:   ds 1
+
+; --- ROM: código del estado PLAY ---
 SECTION "StatePlay", ROM0
-EXPORT Play_Enter
+EXPORT Play_Enter, Play_HandleSelect
 
-; Entra al primer nivel (el que cargabas tras el logo)
+; Entra al nivel actual (definido por wLevelIdx) usando el loader genérico
 Play_Enter::
-    call apagar_LCD
+    call LoadLevelCurrent
+    ret
 
-    ; Tiles del nivel + mapa base + scroll a 0
-    call LoadBaseTiles
-    call DrawMapaBase
-    xor  a
-    ldh  [rSCX], a
-    ldh  [rSCY], a
+; Maneja SELECT (flanco) para saltar al siguiente nivel con LCD OFF/ON
+Play_HandleSelect::
+    ; Seleccionar botones (Start/Select/B/A)
+    ld   a, $10
+    ldh  [rP1], a
+    ldh  a, [rP1]
+    ldh  a, [rP1]
+    cpl
+    and  %00001111
 
-    call InitSprites
+    ; JP = cur & ~prev
+    ld   hl, wPlayBtnsPrev
+    ld   d, [hl]          ; d = prev
+    ld   [hl], a          ; prev = cur
+    ld   [wPlayBtnsCur], a
 
-    call encender_LCD
-    call UpdateRender
+    ld   a, d
+    cpl
+    ld   hl, wPlayBtnsCur
+    and  [hl]
+    ld   [wPlayBtnsJP], a
+
+    ; reposo
+    ld   a, $30
+    ldh  [rP1], a
+
+    ; Si SELECT (bit 2) se pulsó este frame -> NextLevel
+    ld   a, [wPlayBtnsJP]
+    and  KEY_SELECT
+    ret  z
+
+    call NextLevel
     ret
