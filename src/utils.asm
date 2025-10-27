@@ -110,6 +110,11 @@ DoOamDma_template::
    ret
 
 apagar_LCD::
+   ; Solo apagar en VBlank y solo si el LCD está encendido
+   ldh a, [$FF40]
+   bit 7, a
+   ret z
+   call wait_vBlank
    xor a
    ldh [$FF40], a
    ret
