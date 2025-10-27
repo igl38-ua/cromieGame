@@ -1,15 +1,8 @@
-EXPORT MapaBaseWidth, MapaBaseHeight
-EXPORT _MapaBase, MapaBaseEnd
+; ===== src/MapaSegundoNivel.rgbds.asm =====
+EXPORT _MapaSegundoNivel, MapaSegundoNivelEnd
 
-DEF MapaBaseWidth  = 20
-DEF MapaBaseHeight = 18
-DEF MapaBaseBank   = 0
-; Convención de tiles:
-; $01 = fondo oscuro, $00 = plataforma clara
-; $02,$03,$04,$05 = puerta (TL,TR,BL,BR)
-
-SECTION "Mapa Base", ROM0
-_MapaBase::
+SECTION "Mapa Segundo Nivel", ROM0
+_MapaSegundoNivel::
     ; Fila 0 - Fondo
     DB $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
     ; Fila 1 - Fondo
@@ -48,4 +41,5 @@ _MapaBase::
     DB $01,$01,$01,$01,$01,$01,$01,$01,$00,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
     ; Fila 17 - Fondo
     DB $01,$01,$01,$01,$01,$01,$01,$01,$00,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
-_MapaBaseEnd::
+
+MapaSegundoNivelEnd::

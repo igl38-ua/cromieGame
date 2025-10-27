@@ -14,3 +14,6 @@ DEF KEY_A      = %00000001
 DEF KEY_B      = %00000010
 DEF KEY_SELECT = %00000100
 DEF KEY_START  = %00001000
+
+; Número de niveles que tenemos
+DEF LEVEL_COUNT = 2 
