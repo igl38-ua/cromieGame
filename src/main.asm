@@ -1,15 +1,38 @@
 ; ===== main.asm =====
 INCLUDE "include/hw.inc"
 INCLUDE "include/constants.inc"
-SECTION "Main", ROM0
 
+; -------------------- WRAM (variables) --------------------
+SECTION "GameStateVar", WRAM0
+EXPORT wGameState
+wGameState: ds 1
+
+; -------------------- ROM0 (código) -----------------------
+SECTION "Main", ROM0
 EXPORT main
+
 main::
     call Init
+
+    ; Entramos en el menú de inicio
+    call Title_Enter 
+    xor  a 
+    ld   [wGameState], a   ; STATE_TITLE = 0 
+
 .loop
     call ReadInput
+
+    ld   a, [wGameState]
+    cp   STATE_TITLE
+    jr   z, .doTitle 
+
+    ; --- STATE_PLAY ---
     call UpdateMovement
     call UpdateRender
+    jp   .loop
+
+.doTitle:
+    call Title_Update
     jp   .loop
 
 ; ---------------------------------------------------------------------------
@@ -20,7 +43,6 @@ DrawMapaBase::
     ld   hl, _MapaBase        ; origen (definido en mapa_data.asm)
     ld   de, $9800            ; destino (BG map 0)
     ld   b, 18                ; 18 filas
-
 .fila:
     ld   c, 20                ; 20 columnas
 .col:
@@ -108,24 +130,18 @@ Init::
     ; 2) Limpia OAM
     call limpiar_OAM
 
-    ; 3) Paleta de fondo
+    ; 3) Paleta de fondo y sprites
     ld   a, %11100100
     ldh  [rBGP], a             ; $FF47
     ldh  [rOBP0], a            ; $FF48
-    ldh  [rOBP1], a            ; $FF48
+    ldh  [rOBP1], a            ; $FF49
 
-    ; 5) Asegura tiles base 01/06/07 para el mapa
-    call LoadBaseTiles
-
-    ; 6) Dibuja el mapa 20x18 en $9800
-    call DrawMapaBase
-
-    ; 7) Scroll a 0
-    xor  a
-    ldh  [rSCX], a             ; $FF43
-    ldh  [rSCY], a             ; $FF42
-
-    call InitSprites
-    call UpdateRender
-
+    ; 5) Estas llamadas ahora las hace Play_Enter tras pulsar START:
+    ; call LoadBaseTiles
+    ; call DrawMapaBase
+    ; xor  a
+    ; ldh  [rSCX], a
+    ; ldh  [rSCY], a
+    ; call InitSprites
+    ; call UpdateRender
     ret
