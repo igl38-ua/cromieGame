@@ -63,7 +63,7 @@ SECTION "Header", ROM0[$100]
    ;;    $00 (DMG1 - Monochrome GB)
    ;;    $80 (CGB but Backwards compatible)
    ;;    $C0 (CGB Only)
-   db $00   ;; DMG1 - Monochrome
+   db $80   ;; DMG1 - Monochrome
 
    ;;--------------------------------------
    ;;-- New licensee code ($0144-$0145, 2 bytes)
