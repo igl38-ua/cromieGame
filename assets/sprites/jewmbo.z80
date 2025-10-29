@@ -24,6 +24,7 @@ SECTION "jewmbo", ROM0
 
 ; Start of tile array.
 jewmbo::
+    ; ====== JEWMBO BASE ======
     ; tile 0 (arriba-izquierda)
     DB $00,$00,$00,$00,$01,$01,$03,$03
     DB $03,$03,$03,$03,$07,$07,$3F,$3F
@@ -36,6 +37,65 @@ jewmbo::
     ; tile 3 (abajo-derecha)
     DB $FC,$FC,$CE,$CE,$DE,$DE,$CE,$CE
     DB $EA,$EA,$E0,$E0,$60,$60,$60,$60
+
+    ; ====== JEWMBO CORRER DERECHA ======
+    ; PASO 1
+    ; tile 0 (arriba-izquierda)  
+    DB $00,$00,$01,$01,$03,$03,$03,$03
+    DB $03,$03,$07,$07,$1F,$1F,$3F,$3F
+    ; tile 1 (abajo-izquierda)
+    DB $3B,$3B,$33,$33,$03,$03,$03,$03
+    DB $0F,$0F,$0E,$0E,$08,$08,$00,$00
+    ; tile 2 (arriba-derecha)
+    DB $60,$60,$D0,$D0,$F8,$F8,$E0,$E0
+    DB $C0,$C0,$EE,$EE,$FE,$FE,$F8,$F8
+    ; tile 3 (abajo-derecha)
+    DB $C0,$C0,$C0,$C0,$C0,$C0,$E0,$E0
+    DB $F0,$F0,$30,$30,$38,$38,$00,$00
+
+    ; PASO 2
+    ; tile 0 (arriba-izquierda)  
+    DB $00,$00,$01,$01,$03,$03,$03,$03
+    DB $03,$03,$37,$37,$3F,$3F,$1F,$1F
+    ; tile 1 (abajo-izquierda)
+    DB $03,$03,$03,$03,$03,$03,$03,$03
+    DB $07,$07,$07,$07,$03,$03,$03,$03
+    ; tile 2 (arriba-derecha)
+    DB $60,$60,$D0,$D0,$F8,$F8,$E0,$E0
+    DB $C0,$C0,$E0,$E0,$F8,$F8,$FC,$FC
+    ; tile 3 (abajo-derecha)
+    DB $C0,$C0,$C0,$C0,$C0,$C0,$E0,$E0
+    DB $F0,$F0,$70,$70,$40,$40,$80,$80
+
+    ; ====== JEWMBO CORRER IZQUIERDA ======
+    ; PASO 1
+    ; tile 0 (arriba-izquierda)  
+    DB $06,$06,$0B,$0B,$1F,$1F,$07,$07
+    DB $03,$03,$77,$77,$7F,$7F,$1F,$1F
+    ; tile 1 (abajo-izquierda)
+    DB $03,$03,$03,$03,$03,$03,$07,$07
+    DB $0F,$0F,$0C,$0C,$1C,$1C,$00,$00
+    ; tile 2 (arriba-derecha)
+    DB $00,$00,$80,$80,$C0,$C0,$C0,$C0
+    DB $C0,$C0,$E0,$E0,$F8,$F8,$FC,$FC
+    ; tile 3 (abajo-derecha)
+    DB $DC,$DC,$CC,$CC,$C0,$C0,$C0,$C0
+    DB $F0,$F0,$70,$70,$10,$10,$00,$00
+
+    ; PASO 2
+    ; tile 0 (arriba-izquierda)  
+    DB $06,$06,$0B,$0B,$1F,$1F,$07,$07
+    DB $03,$03,$07,$07,$1F,$1F,$3F,$3F
+    ; tile 1 (abajo-izquierda)
+    DB $33,$33,$03,$03,$03,$03,$07,$07
+    DB $0F,$0F,$0E,$0E,$02,$02,$01,$01
+    ; tile 2 (arriba-derecha)
+    DB $00,$00,$80,$80,$C0,$C0,$C0,$C0
+    DB $C0,$C0,$EC,$EC,$FC,$FC,$F8,$F8
+    ; tile 3 (abajo-derecha)
+    DB $C0,$C0,$C0,$C0,$C0,$C0,$C0,$C0
+    DB $E0,$E0,$E0,$E0,$C0,$C0,$C0,$C0
+
 jewmbo_end::
 
 ; DEF JEWMBO_TILE_COUNT = (jewmbo_end - jewmbo) / 16
