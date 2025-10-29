@@ -50,7 +50,7 @@ SECTION "Header", ROM0[$100]
    ;;    If title is less than 11 bytes, 00's should be added as padding.
    ;;    Older cartridges used 16 bytes, and no manufacturer code was present
    ;;  0123456789A (Max 11 bytes, from 0 to A in Hex)
-   db "Your Game"       ;; String constants do not end in 0
+   db "Cromie Game"       ;; String constants do not end in 0
    ds $013F - @, 0      ;; Pad Title with 0's up to $013E
 
    ;;--------------------------------------
