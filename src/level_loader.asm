@@ -14,12 +14,9 @@ EXPORT LoadLevelCurrent, NextLevel
 ; Suelen definirse como: _MapaBase y _MapaSegundoNivel
 SECTION "LevelTable", ROM0
 LevelMaps:
+    dw _Mapa1 
     dw _MapaBase
     dw _MapaSegundoNivel
-    ; Cambiar los nombres y para añadir más mapas hacer: 
-    ; dw _Mapa3
-    ; dw _Mapa4
-    ; ...
 
 ; ----------------------------------------------------------
 ; LoadLevelCurrent
