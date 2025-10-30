@@ -1,4 +1,3 @@
-; ===== src/systems.asm =====
 INCLUDE "include/hw.inc"
 INCLUDE "include/constants.inc"
 INCLUDE "assets/sprites/jewmbo.z80"
@@ -26,15 +25,13 @@ posX:            DS 1
 posY:            DS 1
 contador:        DS 1
 joypadActual:    DS 1
-animFrame:       DS 1      ; controla alternancia entre paso 1 y 2
+animFrame:       DS 1
 animDir:         DS 1      ; 0 = quieto, 1 = derecha, 2 = izquierda
 velY:           DS 1      ; velocidad vertical (signed)
 onGround:       DS 1      ; 0/1 si está tocando el suelo
 
 
-; -------------------------------------------------
 SECTION "SystemsCode", ROM0
-
 ; -----------------------
 ; Lectura de entrada
 ReadInput::
@@ -126,8 +123,6 @@ UpdateMovement::
 .done_move:
     ret
 
-
-; -------------------------------------------------
 ; Render con animación (sin cambios)
 UpdateRender::
     call wait_vBlank
@@ -146,7 +141,7 @@ UpdateRender::
     add  8
     ld   e, a
 
-    ; --- elegir base de tiles según animDir + animFrame ---
+    ; elegir base de tiles
     ld   a, [animDir]
     or   a
     jr   z, .idle
@@ -182,10 +177,10 @@ UpdateRender::
 .haveTiles:
     ld   b, a              ; base TL tile
 
-    ; construimos HRAMShadowOAM
+    ; HRAMShadowOAM
     ld   hl, HRAMShadowOAM
 
-    ; --- Sprite 0 (izquierda) ---
+    ; Sprite 0 (izquierda)
     ld   a, d
     ld   [hl+], a          ; Y
     ld   a, e
@@ -195,7 +190,7 @@ UpdateRender::
     xor  a
     ld   [hl+], a
 
-    ; --- Sprite 1 (derecha) ---
+    ; Sprite 1 (derecha)
     ld   a, e
     add  8
     ld   e, a
@@ -217,12 +212,7 @@ UpdateRender::
 ; InitSprites (sin cambios)
 InitSprites::
     ; apaga LCD
-    ldh  a, [rLCDC]
-    bit  7, a
-    jr   z, .lcd_off
-    res  7, a
-    ldh  [rLCDC], a
-.lcd_off:
+    call apagar_LCD
 
     ; estado inicial
     ld   a, 40
@@ -241,8 +231,7 @@ InitSprites::
     ldh  [rBGP], a
     ldh  [rOBP0], a
 
-    ; --- copiar tiles de Jewmbo ---
-    ; 5 poses * 4 tiles = 20 tiles = 320 bytes
+    ; copiar tiles de Jewmbo (5*4 tiles = 20 tiles = 320 bytes)
     ld   hl, jewmbo
     ld   de, JEWMBO_VRAM_ADDR
     ld   b, 20
@@ -268,9 +257,7 @@ InitSprites::
     dec  b
     jr   nz, .clear_hram
 
-    ; enciende LCD (modo 8x16)
-    ld   a, %10010111
-    ldh  [rLCDC], a
+    ; NO encender LCD aquí (lo hace el caller tras escribir VRAM)
     ret
 
 
@@ -408,3 +395,4 @@ TestAabbLeft16::
 
     or a
     ret
+
