@@ -60,22 +60,43 @@ FlushOAM_HRAM::
    ; 2) oculta el resto de las 38 entradas
    ; cada sprite: Y, X, tile, attr
    ; para ocultar basta con Y=0
-   ld   b, 38
+;    ld   b, 38
+; .hide_loop:
+;    xor  a           ; a = 0 -> Y = 0 (offscreen)
+;    ld   [de], a     ; Y
+;    inc  de
+;    xor  a           ; X = 0 (da igual)
+;    ld   [de], a
+;    inc  de
+;    xor  a           ; tile = 0
+;    ld   [de], a
+;    inc  de
+;    xor  a           ; attr = 0
+;    ld   [de], a
+;    inc  de
+;    dec  b
+;    jr   nz, .hide_loop
+
+    ld   b, 38
+    ld   a, 8
+    add  a, e
+    ld   e, a
 .hide_loop:
-   xor  a           ; a = 0 -> Y = 0 (offscreen)
-   ld   [de], a     ; Y
-   inc  de
-   xor  a           ; X = 0 (da igual)
-   ld   [de], a
-   inc  de
-   xor  a           ; tile = 0
-   ld   [de], a
-   inc  de
-   xor  a           ; attr = 0
-   ld   [de], a
-   inc  de
-   dec  b
-   jr   nz, .hide_loop
+    xor  a
+    ld   [de], a
+    inc  de
+    xor  a
+    ld   [de], a
+    inc  de
+    xor  a
+    ld   [de], a
+    inc  de
+    xor  a
+    ld   [de], a
+    inc  de
+    dec  b
+    jr   nz, .hide_loop
+
 
    ret
 
