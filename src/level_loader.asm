@@ -21,7 +21,8 @@ LevelMaps:
 ;   resetea scroll, reinicializa sprites y enciende LCD.
 ; ----------------------------------------------------------
 LoadLevelCurrent::
-    ; 0) LCD OFF para escribir VRAM con seguridad
+    ; 0) LCD OFF seguro
+    call wait_vBlank
     call apagar_LCD
 
     ; 1) Tiles comunes
@@ -40,7 +41,7 @@ LoadLevelCurrent::
     ld   h, d
     ld   l, e                  ; HL = ptr tilemap (20x18)
 
-    ; 3) Copiar 20x18 -> $9800 con posible "tapado" integrado si wLevelIdx==0
+    ; 3) Copiar 20x18 -> $9800 (con “tapado” si wLevelIdx==0)
     call CopyTilemap20x18_HL_to_9800
 
     ; 4) Scroll a 0
@@ -48,11 +49,12 @@ LoadLevelCurrent::
     ldh  [rSCX], a
     ldh  [rSCY], a
 
-    ; 5) Reinit sprites
+    ; 5) Reinit sprites (no enciende LCD si ya está ON)
     call InitSprites
 
     ; 6) LCD ON y render
     call encender_LCD
+    call wait_vBlank
     call UpdateRender
     ret
 
@@ -79,25 +81,26 @@ NextLevel::
 ; ----------------------------------------------------------
 CopyTilemap20x18_HL_to_9800::
     ld   de, $9800
-    ld   b, 18                  ; B = filas restantes (empieza en 18)
+    ld   b, 18                  ; B = filas
+
 .row:
-    ld   c, 20                  ; C = columnas restantes (empieza en 20)
+    ld   c, 20                  ; C = columnas
 
 .col:
-    ld   a, [hl+]               ; A = tile original (avanza HL)
-    push af                     ; guarda tile original
+    ld   a, [hl+]               ; tile fuente
+    push af                     ; guardar A
 
-    ; ¿Estamos en Mapa1? (wLevelIdx==0)
+    ; ¿Mapa1? (wLevelIdx == 0) -> posibles columnas 9..10, filas 10..17
     ld   a, [wLevelIdx]
     or   a
-    jr   nz, .no_patch          ; si no es 0, no parcheamos
+    jr   nz, .no_patch          ; *** IMPORTANTE: HAY QUE HACER pop af ***
 
-    ; Filas 10..17 <=> B en [8..1] al inicio de la fila
+    ; Filas 10..17 -> cuando B en [8..1]
     ld   a, b
     cp   9
-    jr   nc, .no_patch_row      ; si B>=9, no estamos en filas 10..17
+    jr   nc, .no_patch_row
 
-    ; Columnas 9..10 <=> C vale 11 ó 10 en este punto del bucle
+    ; Columnas 9..10 -> C == 11 ó 10 en este punto
     ld   a, c
     cp   11
     jr   z, .do_patch
@@ -107,20 +110,22 @@ CopyTilemap20x18_HL_to_9800::
 
 .do_patch:
     pop  af                     ; descarta tile original
-    ld   a, $01                 ; fuerza tile oscuro (pared/suelo)
+    ld   a, $01                 ; negro/oscuro
     jr   .write_tile
 
 .no_patch_row:
-    pop  af
+    pop  af                     ; usa tile original
+    jr   .write_tile
 
 .no_patch:
+    pop  af                     ; *** FIX: recuperar AF antes de escribir ***
 .write_tile:
     ld   [de], a
     inc  de
     dec  c
     jr   nz, .col
 
-    ; saltar 12 posiciones hasta inicio de la siguiente fila de BG
+    ; salto de 12 hasta la próxima fila
     ld   a, e
     add  a, 12
     ld   e, a
