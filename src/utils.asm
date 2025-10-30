@@ -125,65 +125,84 @@ encender_LCD::
    ret
 
 ; -------------------------------------------------
-; Rellena un rectángulo del BG map ($9800) con un tile
+; Rellena un rectángulo del BG map con un tile
+; Escribe en $9800 y también en $9C00 (por si el LCDC
+; está usando el BG map 1). Llama con LCD OFF o en VBlank.
 ; Entradas:
 ;   A = tile id
 ;   B = alto (h) en tiles
 ;   C = ancho (w) en tiles
 ;   D = fila (row)  0..17
 ;   E = col  (col)  0..19
-; NOTA: Úsala con LCD OFF o en VBlank.
 ; -------------------------------------------------
 RellenaHueco::
-    ; HL = row*32 + col
-    ld   h, 0
-    ld   l, d
-    add  hl, hl       ; *2
-    add  hl, hl       ; *4
-    add  hl, hl       ; *8
-    add  hl, hl       ; *16
-    add  hl, hl       ; *32
+    ; Guarda parámetros
+    push af           ; tile
+    push bc           ; alto/ancho
+    push de           ; row/col
 
-    ; + col (E) sin tocar C (width)
-    ld   a, l
-    add  a, e
-    ld   l, a
+    ; ---- $9800 ----
+    pop  de           ; E=col, D=row
+    pop  bc           ; B=alto, C=ancho
+    pop  af           ; A=tile
+    ld   hl, $9800
+    call .DoFill
+
+    ; Vuelve a rellenar con los mismos parámetros en $9C00
+    push af
+    push bc
+    push de
+
+    pop  de
+    pop  bc
+    pop  af
+    ld   hl, $9C00
+    ; cae a la misma subrutina
+.DoFill:
+    ; HL = base + row*32 + col
+    push hl                 ; guarda base
+    ld   h,0
+    ld   l,d                ; L=row
+    add  hl,hl              ; *2
+    add  hl,hl              ; *4
+    add  hl,hl              ; *8
+    add  hl,hl              ; *16
+    add  hl,hl              ; *32
+    ld   a,l
+    add  a,e                ; +col
+    ld   l,a
     jr   nc, .no_carry_col
     inc  h
 .no_carry_col:
+    pop  de                 ; DE=base ($9800/$9C00)
+    add  hl,de              ; HL=destino inicial
 
-    ; + base $9800
-    ld   de, $9800
-    add  hl, de
-
-    ; E = width (lo usaremos por fila)
-    ld   e, c
-
-    ; D = stride = 32 - width  (conservando A=tile)
-    push af
-    ld   a, 32
+    ; E = width, D = stride = 32 - width
+    ld   e,c                ; e=ancho
+    push af                 ; guarda tile
+    ld   a,32
     sub  e
-    ld   d, a
-    pop  af            ; A vuelve a ser el tile
+    ld   d,a                ; d=stride
+    pop  af                 ; A=tile
 
 .row_loop:
-    ld   c, e          ; recarga ancho para esta fila
+    ld   c,e                ; ancho por fila
 .col_loop:
-    ld   [hl+], a      ; escribe tile A
+    ld   [hl+],a
     dec  c
-    jr   nz, .col_loop
+    jr   nz,.col_loop
 
-    ; HL += stride (D) sin perder A
+    ; HL += stride
     push af
-    ld   a, l
-    add  a, d
-    ld   l, a
-    jr   nc, .no_carry_row
+    ld   a,l
+    add  a,d
+    ld   l,a
+    jr   nc,.no_carry_row
     inc  h
 .no_carry_row:
     pop  af
 
-    dec  b            ; siguiente fila
-    jr   nz, .row_loop
+    dec  b                  ; siguiente fila
+    jr   nz,.row_loop
     ret
 
