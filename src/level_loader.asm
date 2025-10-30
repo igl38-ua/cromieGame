@@ -9,12 +9,9 @@ SECTION "LevelLoader", ROM0
 EXPORT LoadLevelCurrent, NextLevel
 
 ; Tabla de mapas (punteros a tilemaps 20x18)
-; Asegúrate de que estos labels existen en tus ficheros de mapas.
-; En tus nombres: MapaBase.rgbds.asm y MapaSegundoNivel.rgbds.asm
-; Suelen definirse como: _MapaBase y _MapaSegundoNivel
 SECTION "LevelTable", ROM0
 LevelMaps:
-    dw _Mapa1 
+    dw _Mapa1
     dw _MapaBase
     dw _MapaSegundoNivel
 
@@ -24,36 +21,55 @@ LevelMaps:
 ;   resetea scroll, reinicializa sprites y enciende LCD.
 ; ----------------------------------------------------------
 LoadLevelCurrent::
-    ; 0) Apagar LCD para escribir VRAM sin riesgo
+    ; 0) LCD OFF para escribir VRAM con seguridad
     call apagar_LCD
 
-    ; 1) Tiles (si todos los niveles comparten tileset, con esto basta)
+    ; 1) Tiles comunes
     call LoadBaseTiles
 
-    ; 2) Obtener puntero HL al tilemap del nivel [wLevelIdx]
-    ; HL = LevelMaps + (wLevelIdx * 2)
+    ; 2) HL = &LevelMaps[wLevelIdx*2], HL <- puntero tilemap
     ld   hl, LevelMaps
     ld   a, [wLevelIdx]
-    add  a, a              ; *2
+    add  a, a                  ; *2
     ld   e, a
     ld   d, 0
     add  hl, de
-    ; HL apunta a la entrada; cargar puntero del tilemap a HL
     ld   e, [hl]
     inc  hl
     ld   d, [hl]
     ld   h, d
-    ld   l, e              ; HL = ptr tilemap 20x18
+    ld   l, e                  ; HL = ptr tilemap (20x18)
 
-    ; 3) Copiar 20x18 desde HL a $9800 (saltando 12 por fila)
+    ; Guarda el puntero del mapa en BC para identificarlo después
+    ld   b, h
+    ld   c, l
+
+    ; 3) Copiar 20x18 -> $9800
     call CopyTilemap20x18_HL_to_9800
+
+    ; 3.5) Si el mapa cargado es _Mapa1, tapar el hueco
+    ld   de, _Mapa1            ; DE = &_Mapa1
+    ld   a, c                  ; compara BC con DE (16-bit)
+    sub  e
+    ld   a, b
+    sbc  a, d
+    jr   nz, .skip_cover       ; si distinto, no es Mapa1
+
+    ; --- Tapar hueco del Mapa1: columnas 9..10, filas 10..17 con tile $01 ---
+    ld   a, $01                ; tile pared/suelo oscuro
+    ld   b, 8                  ; alto
+    ld   c, 2                  ; ancho
+    ld   d, 10                 ; fila inicio
+    ld   e, 9                  ; col  inicio
+    call RellenaHueco
+.skip_cover:
 
     ; 4) Scroll a 0
     xor  a
     ldh  [rSCX], a
     ldh  [rSCY], a
 
-    ; 5) Reinit sprites (como hacías en Play_Enter original)
+    ; 5) Reinit sprites
     call InitSprites
 
     ; 6) LCD ON y render

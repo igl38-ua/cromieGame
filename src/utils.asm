@@ -7,7 +7,7 @@ SECTION "HRAMShadowOAM", HRAM[$FF80]
 SECTION "utils", ROM0
 
 EXPORT wait_vBlank, limpiar_OAM, memcpy, copiar_a_VRAM
-EXPORT DoOamDma_template, apagar_LCD, encender_LCD
+EXPORT DoOamDma_template, apagar_LCD, encender_LCD, RellenaHueco
 
 wait_vBlank::
    .loop:
@@ -123,3 +123,67 @@ encender_LCD::
    ld a, $97
    ldh [$FF40], a
    ret
+
+; -------------------------------------------------
+; Rellena un rectángulo del BG map ($9800) con un tile
+; Entradas:
+;   A = tile id
+;   B = alto (h) en tiles
+;   C = ancho (w) en tiles
+;   D = fila (row)  0..17
+;   E = col  (col)  0..19
+; NOTA: Úsala con LCD OFF o en VBlank.
+; -------------------------------------------------
+RellenaHueco::
+    ; HL = row*32 + col
+    ld   h, 0
+    ld   l, d
+    add  hl, hl       ; *2
+    add  hl, hl       ; *4
+    add  hl, hl       ; *8
+    add  hl, hl       ; *16
+    add  hl, hl       ; *32
+
+    ; + col (E) sin tocar C (width)
+    ld   a, l
+    add  a, e
+    ld   l, a
+    jr   nc, .no_carry_col
+    inc  h
+.no_carry_col:
+
+    ; + base $9800
+    ld   de, $9800
+    add  hl, de
+
+    ; E = width (lo usaremos por fila)
+    ld   e, c
+
+    ; D = stride = 32 - width  (conservando A=tile)
+    push af
+    ld   a, 32
+    sub  e
+    ld   d, a
+    pop  af            ; A vuelve a ser el tile
+
+.row_loop:
+    ld   c, e          ; recarga ancho para esta fila
+.col_loop:
+    ld   [hl+], a      ; escribe tile A
+    dec  c
+    jr   nz, .col_loop
+
+    ; HL += stride (D) sin perder A
+    push af
+    ld   a, l
+    add  a, d
+    ld   l, a
+    jr   nc, .no_carry_row
+    inc  h
+.no_carry_row:
+    pop  af
+
+    dec  b            ; siguiente fila
+    jr   nz, .row_loop
+    ret
+
