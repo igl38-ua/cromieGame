@@ -2,102 +2,108 @@
 INCLUDE "include/hw.inc"
 INCLUDE "include/constants.inc"
 
-SECTION "LevelLoaderVars", WRAM0
-; wLevelIdx lo define y exporta main.asm; aquí solo lo usamos.
-
 SECTION "LevelLoader", ROM0
 EXPORT LoadLevelCurrent, NextLevel
 
-; Tabla de mapas (punteros a tilemaps 20x18)
-; Asegúrate de que estos labels existen en tus ficheros de mapas.
-; En tus nombres: MapaBase.rgbds.asm y MapaSegundoNivel.rgbds.asm
-; Suelen definirse como: _MapaBase y _MapaSegundoNivel
+; Necesitamos usar wLevelTilePtr (WRAM) exportado desde su módulo (p.ej., components.asm)
+; Asegúrate de tener allí:
+;   SECTION "LevelPtr", WRAM0
+;   EXPORT wLevelTilePtr
+;   wLevelTilePtr: DS 2
+
 SECTION "LevelTable", ROM0
+; Tabla de niveles: punteros a tilemaps 20x18
+; Debes tener definidos _MapaBase y _MapaSegundoNivel en tus assets
 LevelMaps:
     dw _MapaBase
     dw _MapaSegundoNivel
-    ; Cambiar los nombres y para añadir más mapas hacer: 
-    ; dw _Mapa3
-    ; dw _Mapa4
-    ; ...
 
-; ----------------------------------------------------------
-; LoadLevelCurrent
-;   Carga tiles base, copia el tilemap del nivel actual a $9800,
-;   resetea scroll, reinicializa sprites y enciende LCD.
-; ----------------------------------------------------------
+
+; -----------------------------------------
+; Carga el nivel actual (índice en wLevelIdx)
+; - Apaga LCD
+; - Carga tiles base (fon/tileset)               [LoadBaseTiles -> debes tenerla en otro módulo]
+; - Resuelve puntero a tilemap y lo guarda en wLevelTilePtr
+; - Copia tilemap a $9800
+; - Construye wCollMap
+; - InitSprites y coloca jugador
+; - Enciende LCD y primer render
+; -----------------------------------------
 LoadLevelCurrent::
-    ; 0) Apagar LCD para escribir VRAM sin riesgo
     call apagar_LCD
-
-    ; 1) Tiles (si todos los niveles comparten tileset, con esto basta)
     call LoadBaseTiles
 
-    ; 2) Obtener puntero HL al tilemap del nivel [wLevelIdx]
-    ; HL = LevelMaps + (wLevelIdx * 2)
+    ; HL = puntero tilemap del nivel [wLevelIdx]
     ld   hl, LevelMaps
-    ld   a, [wLevelIdx]
-    add  a, a              ; *2
+    ld   a, [wLevelIdx]      ; (exportada en main.asm)
+    add  a, a                ; *2
     ld   e, a
     ld   d, 0
     add  hl, de
-    ; HL apunta a la entrada; cargar puntero del tilemap a HL
     ld   e, [hl]
     inc  hl
     ld   d, [hl]
     ld   h, d
-    ld   l, e              ; HL = ptr tilemap 20x18
+    ld   l, e                ; HL = ptr tilemap 20x18
 
-    ; 3) Copiar 20x18 desde HL a $9800 (saltando 12 por fila)
+    ; --- Guardar puntero del tilemap en WRAM (para lectura directa de tiles, p.ej. pinchos)
+    ld   a, l
+    ld   [wLevelTilePtr], a
+    ld   a, h
+    ld   [wLevelTilePtr+1], a
+
+    ; --- Copiar tilemap 20x18 a BG Map 0 ($9800)
+    push hl
     call CopyTilemap20x18_HL_to_9800
+    pop  hl
 
-    ; 4) Scroll a 0
+    ; --- Construir mapa de colisión (0 libre / 1 sólido)
+    call BuildCollisionMap_HL
+    ; Scroll a 0
     xor  a
     ldh  [rSCX], a
     ldh  [rSCY], a
 
-    ; 5) Reinit sprites (como hacías en Play_Enter original)
+    ; IMPORTANTE: InitSprites ANTES de PlacePlayerOnFreeTile
     call InitSprites
+    call PlacePlayerOnFreeTile
 
-    ; 6) LCD ON y render
     call encender_LCD
     call UpdateRender
     ret
 
-; ----------------------------------------------------------
-; NextLevel
-;   Avanza wLevelIdx = (wLevelIdx+1) % LEVEL_COUNT y carga.
-; ----------------------------------------------------------
+
+; -----------------------------------------
+; Avanza al siguiente nivel (cíclico) y carga
+; -----------------------------------------
 NextLevel::
     ld   a, [wLevelIdx]
     inc  a
     cp   LEVEL_COUNT
-    jr   c, .noWrap
+    jr   c, .ok
     xor  a
-.noWrap:
+.ok:
     ld   [wLevelIdx], a
     call LoadLevelCurrent
     ret
 
-; ----------------------------------------------------------
-; CopyTilemap20x18_HL_to_9800
-;   Copia 20x18 bytes desde [HL] a $9800, saltando 12 por fila.
-; ----------------------------------------------------------
+
+; -----------------------------------------
+SECTION "LevelCopy", ROM0
+; HL -> tilemap 20x18, copia en $9800 con stride de 32 (salta 12 por fila)
 CopyTilemap20x18_HL_to_9800::
     ld   de, $9800
-    ld   b, 18
+    ld   b, MAP_H          ; 18 filas
 .row:
-    ld   c, 20
+    ld   c, MAP_W          ; 20 columnas
 .col:
     ld   a, [hl+]
     ld   [de], a
     inc  de
     dec  c
     jr   nz, .col
-
-    ; saltar 12 posiciones hasta inicio de la siguiente fila de BG
     ld   a, e
-    add  a, 12
+    add  a, 12             ; saltar 12 hasta siguiente fila
     ld   e, a
     jr   nc, .noCarry
     inc  d
@@ -105,3 +111,28 @@ CopyTilemap20x18_HL_to_9800::
     dec  b
     jr   nz, .row
     ret
+
+SECTION "BuildColl", ROM0
+BuildCollisionMap_HL::
+    ld   de, wCollMap
+    ld   b, MAP_H
+.r:
+    ld   c, MAP_W
+.c:
+    ld   a, [hl+]          ; tile id
+
+    or   a                 ; ¿$00?
+    jr   z, .free          ; $00 => libre
+    ld   a, 1              ; !=$00 => sólido ($01, $02..$06, etc.)
+    jr   .store
+.free:
+    xor  a                 ; 0 = libre
+.store:
+    ld   [de], a
+    inc  de
+    dec  c
+    jr   nz, .c
+    dec  b
+    jr   nz, .r
+    ret
+

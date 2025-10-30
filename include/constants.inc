@@ -17,3 +17,10 @@ DEF KEY_START  = %00001000
 
 ; Número de niveles que tenemos
 DEF LEVEL_COUNT = 2 
+
+DEF MAP_W      EQU 20
+DEF MAP_H      EQU 18
+
+; puntos sólidos del jugador (sprite 16x16)
+DEF SPR_W      EQU 16
+DEF SPR_H      EQU 16
