@@ -10,8 +10,8 @@ make clean
 echo "==> make"
 make
 
-echo "==> rgbfix -v -p 0xFF game.gb"
-rgbfix -v -p 0xFF game.gb
+echo "==> rgbfix -v -p 0xFF CromieGame.gb"
+rgbfix -v -p 0xFF CromieGame.gb
 
-echo "==> gbt_bgb game.gb"
-gbt_bgb game.gb
+echo "==> gbt_bgb CromieGame.gb"
+gbt_bgb CromieGame.gb

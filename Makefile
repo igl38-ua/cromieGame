@@ -8,7 +8,7 @@ include cfg/projectpaths.mk   # Local paths and files for the project
 
 ##-----------------------------------------
 ## Project general configuration
-PRJNAME  := game
+PRJNAME  := CromieGame
 PAD      := 0xFF
 INCLUDE  := -Isrc -Iinclude
 ASMFLAGS := -Weverything

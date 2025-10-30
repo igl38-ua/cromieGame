@@ -9,17 +9,11 @@ SECTION "LevelLoader", ROM0
 EXPORT LoadLevelCurrent, NextLevel
 
 ; Tabla de mapas (punteros a tilemaps 20x18)
-; Asegúrate de que estos labels existen en tus ficheros de mapas.
-; En tus nombres: MapaBase.rgbds.asm y MapaSegundoNivel.rgbds.asm
-; Suelen definirse como: _MapaBase y _MapaSegundoNivel
 SECTION "LevelTable", ROM0
 LevelMaps:
+    dw _Mapa1
     dw _MapaBase
     dw _MapaSegundoNivel
-    ; Cambiar los nombres y para añadir más mapas hacer: 
-    ; dw _Mapa3
-    ; dw _Mapa4
-    ; ...
 
 ; ----------------------------------------------------------
 ; LoadLevelCurrent
@@ -27,28 +21,27 @@ LevelMaps:
 ;   resetea scroll, reinicializa sprites y enciende LCD.
 ; ----------------------------------------------------------
 LoadLevelCurrent::
-    ; 0) Apagar LCD para escribir VRAM sin riesgo
+    ; 0) LCD OFF seguro
+    call wait_vBlank
     call apagar_LCD
 
-    ; 1) Tiles (si todos los niveles comparten tileset, con esto basta)
+    ; 1) Tiles comunes
     call LoadBaseTiles
 
-    ; 2) Obtener puntero HL al tilemap del nivel [wLevelIdx]
-    ; HL = LevelMaps + (wLevelIdx * 2)
+    ; 2) HL = &LevelMaps[wLevelIdx*2], HL <- puntero tilemap
     ld   hl, LevelMaps
     ld   a, [wLevelIdx]
-    add  a, a              ; *2
+    add  a, a                  ; *2
     ld   e, a
     ld   d, 0
     add  hl, de
-    ; HL apunta a la entrada; cargar puntero del tilemap a HL
     ld   e, [hl]
     inc  hl
     ld   d, [hl]
     ld   h, d
-    ld   l, e              ; HL = ptr tilemap 20x18
+    ld   l, e                  ; HL = ptr tilemap (20x18)
 
-    ; 3) Copiar 20x18 desde HL a $9800 (saltando 12 por fila)
+    ; 3) Copiar 20x18 -> $9800 (con “tapado” si wLevelIdx==0)
     call CopyTilemap20x18_HL_to_9800
 
     ; 4) Scroll a 0
@@ -56,11 +49,12 @@ LoadLevelCurrent::
     ldh  [rSCX], a
     ldh  [rSCY], a
 
-    ; 5) Reinit sprites (como hacías en Play_Enter original)
+    ; 5) Reinit sprites (no enciende LCD si ya está ON)
     call InitSprites
 
     ; 6) LCD ON y render
     call encender_LCD
+    call wait_vBlank
     call UpdateRender
     ret
 
@@ -80,22 +74,58 @@ NextLevel::
     ret
 
 ; ----------------------------------------------------------
-; CopyTilemap20x18_HL_to_9800
+; CopyTilemap20x18_HL_to_9800 (con tapado integrado para Mapa1)
 ;   Copia 20x18 bytes desde [HL] a $9800, saltando 12 por fila.
+;   Si wLevelIdx==0 (Mapa1), fuerza tile $01 en columnas 9..10 y
+;   filas 10..17 (coordenadas 0-based) durante la copia.
 ; ----------------------------------------------------------
 CopyTilemap20x18_HL_to_9800::
     ld   de, $9800
-    ld   b, 18
+    ld   b, 18                  ; B = filas
+
 .row:
-    ld   c, 20
+    ld   c, 20                  ; C = columnas
+
 .col:
-    ld   a, [hl+]
+    ld   a, [hl+]               ; tile fuente
+    push af                     ; guardar A
+
+    ; ¿Mapa1? (wLevelIdx == 0) -> posibles columnas 9..10, filas 10..17
+    ld   a, [wLevelIdx]
+    or   a
+    jr   nz, .no_patch          ; *** IMPORTANTE: HAY QUE HACER pop af ***
+
+    ; Filas 10..17 -> cuando B en [8..1]
+    ld   a, b
+    cp   9
+    jr   nc, .no_patch_row
+
+    ; Columnas 9..10 -> C == 11 ó 10 en este punto
+    ld   a, c
+    cp   11
+    jr   z, .do_patch
+    cp   10
+    jr   z, .do_patch
+    jr   .no_patch_row
+
+.do_patch:
+    pop  af                     ; descarta tile original
+    ld   a, $01                 ; negro/oscuro
+    jr   .write_tile
+
+.no_patch_row:
+    pop  af                     ; usa tile original
+    jr   .write_tile
+
+.no_patch:
+    pop  af                     ; *** FIX: recuperar AF antes de escribir ***
+.write_tile:
     ld   [de], a
     inc  de
     dec  c
     jr   nz, .col
 
-    ; saltar 12 posiciones hasta inicio de la siguiente fila de BG
+    ; salto de 12 hasta la próxima fila
     ld   a, e
     add  a, 12
     ld   e, a

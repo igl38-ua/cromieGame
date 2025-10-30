@@ -33,10 +33,7 @@ main::
     ; --- STATE_PLAY ---
     ; Detecta SELECT (flanco) para cambiar de nivel con LCD OFF/ON
     call Play_HandleSelect
-
-    call UpdateMovement
-    call UpdateRender
-    jp   .loop
+    call Play_Update
 
 .doTitle:
     call Title_Update

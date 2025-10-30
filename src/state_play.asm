@@ -10,13 +10,24 @@ wPlayBtnsJP:   ds 1
 
 ; --- ROM: código del estado PLAY ---
 SECTION "StatePlay", ROM0
-EXPORT Play_Enter, Play_HandleSelect
+EXPORT Play_Enter, Play_Update, Play_HandleSelect
 
-; Entra al nivel actual (definido por wLevelIdx) usando el loader genérico
+; -----------------------------------
+; Se ejecuta una sola vez al entrar al nivel
 Play_Enter::
     call LoadLevelCurrent
+    call InitSprites
     ret
 
+; -----------------------------------
+; Se ejecuta cada frame durante el juego
+Play_Update::
+    call ReadInput
+    call UpdateMovement
+    call UpdateRender
+    ret
+
+; -----------------------------------
 ; Maneja SELECT (flanco) para saltar al siguiente nivel con LCD OFF/ON
 Play_HandleSelect::
     ; Seleccionar botones (Start/Select/B/A)
