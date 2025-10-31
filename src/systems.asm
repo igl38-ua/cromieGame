@@ -44,8 +44,6 @@ ReadInput::
     ld   [joypadActual], a
     ret
 
-; -----------------------
-; Movimiento + animación (solo izquierda/derecha con colisiones)
 UpdateMovement::
 
     ld   hl, contador
@@ -64,12 +62,11 @@ UpdateMovement::
     ld   a, [hl]
     and  1
     ld   [hl], a
+
 .skip_anim:
-
-    ; -------- Horizontal --------
-    ld   a, [joypadActual]
-
     ; ---------------- Derecha ----------------
+    ; bit 0 (KEY_RIGHT) en joypadActual
+    ld   a, [joypadActual]
     bit  0, a
     jr   z, .chkLeft
 
@@ -78,19 +75,17 @@ UpdateMovement::
     ld   c, a            ; C = x candidato
     ld   a, [posY]
     ld   b, a            ; B = y actual
-    
     call TestAabbRight16
-    jr   z, .blockRight  ; Z=1 → hay colisión, no mover
-    
+    jr   z, .blockRight
     ld   hl, posX
-    inc  [hl]            ; mueve 1 px derecha
+    inc  [hl]            ; mueve 1 px a la derecha
     ld   a, 1
     ld   [animDir], a
-    jr   .done_move
+    jr   .after_hmove
 .blockRight:
     ld   a, 1
     ld   [animDir], a
-    jr   .done_move
+    jr   .after_hmove
 
     ; ---------------- Izquierda ----------------
 .chkLeft:
@@ -102,26 +97,111 @@ UpdateMovement::
     ld   c, a
     ld   a, [posY]
     ld   b, a
-    
     call TestAabbLeft16
     jr   z, .blockLeft
-    
     ld   hl, posX
-    dec  [hl]            ; mueve 1 px izquierda
+    dec  [hl]            ; mueve 1 px a la izquierda
     ld   a, 2
     ld   [animDir], a
-    jr   .done_move
+    jr   .after_hmove
 .blockLeft:
     ld   a, 2
     ld   [animDir], a
-    jr   .done_move
 
 .no_input:
     xor  a
     ld   [animDir], a
 
+.after_hmove:
+
+    ;; === Física vertical: salto + gravedad + integración por píxel ===
+    ; Jump con Up cuando estamos en el suelo
+    ld   a, [joypadActual]
+    bit  2, a                ; Up
+    jr   z, .no_jump_input
+    ld   a, [onGround]
+    or   a
+    jr   z, .no_jump_input
+    ld   a, JUMP_SPEED
+    ld   [velY], a
+    xor  a
+    ld   [onGround], a
+.no_jump_input:
+
+    ; v = clamp(v + GRAVITY, -128..TERMINAL_SPEED)
+    ld   a, [velY]
+    add  a, GRAVITY
+    cp   TERMINAL_SPEED + 1
+    jr   c, .no_clamp_pos
+    ld   a, TERMINAL_SPEED
+.no_clamp_pos:
+    ld   [velY], a
+
+    ; Integración por pasos de 1 px según el signo de velY
+    ld   a, [velY]
+    or   a
+    jr   z, .done_vertical
+
+    ld   c, a               ; C = velY (signed)
+    bit  7, c
+    jr   z, .falling        ; si no es negativo, estamos cayendo
+
+.rising:
+    ; n = (-velY)
+    ld   a, c
+    cpl
+    inc  a
+    ld   b, a               ; B = pasos
+.rise_step:
+    ; candidato y-1
+    ld   a, [posY]
+    dec  a
+    ld   d, a               ; D = y'
+    ld   a, [posX]
+    ld   c, a               ; C = x
+    ld   b, d               ; B = y'
+    call TestAabbUp16
+    jr   z, .hit_top
+    ; aplicar
+    ld   hl, posY
+    dec  [hl]
+    dec  b
+    jr   nz, .rise_step
+    jr   .done_vertical
+.hit_top:
+    xor  a
+    ld   [velY], a
+    jr   .done_vertical
+
+.falling:
+    ld   b, c               ; B = pasos (velY>0)
+.fall_step:
+    ; candidato y+1
+    ld   a, [posY]
+    inc  a
+    ld   d, a               ; D = y'
+    ld   a, [posX]
+    ld   c, a               ; C = x
+    ld   b, d               ; B = y'
+    call TestAabbDown16
+    jr   z, .hit_floor
+    ; aplicar
+    ld   hl, posY
+    inc  [hl]
+    dec  b
+    jr   nz, .fall_step
+    jr   .done_vertical
+.hit_floor:
+    xor  a
+    ld   [velY], a
+    inc  a
+    ld   [onGround], a
+
+.done_vertical:
+
 .done_move:
     ret
+
 
 ; Render con animación (sin cambios)
 UpdateRender::
@@ -217,7 +297,7 @@ InitSprites::
     ; estado inicial
     ld   a, 40
     ld   [posX], a
-    ld   a, 64
+    ld   a, 50
     ld   [posY], a
     xor  a
     ld   [contador], a
@@ -353,6 +433,70 @@ TestAabbRight16::
     ld d, a
     ld a, b
     add a, 13
+    ld e, a
+    ld a, d
+    ld b, e
+    call GetBgTileAtXY
+    call IsTileSolid
+    ret z
+
+    or a
+    ret
+
+; === Colisión vertical 16x16: Borde INFERIOR ===
+; C = x candidato (esquina sup-izq del hitbox), B = y
+; Z=1 si HAY colisión en el borde inferior
+TestAabbDown16::
+    ; puntos: (x+2, y+15) y (x+13, y+15)
+    ld a, c
+    add a, 2
+    ld d, a
+    ld a, b
+    add a, 15
+    ld e, a
+    ld a, d
+    ld b, e
+    call GetBgTileAtXY
+    call IsTileSolid
+    ret z
+
+    ld a, c
+    add a, 13
+    ld d, a
+    ld a, b
+    add a, 15
+    ld e, a
+    ld a, d
+    ld b, e
+    call GetBgTileAtXY
+    call IsTileSolid
+    ret z
+
+    or a
+    ret
+
+; === Colisión vertical 16x16: Borde SUPERIOR ===
+; C = x candidato (esquina sup-izq del hitbox), B = y
+; Z=1 si HAY colisión en el borde superior
+TestAabbUp16::
+    ; puntos: (x+2, y+1) y (x+13, y+1)
+    ld a, c
+    add a, 2
+    ld d, a
+    ld a, b
+    add a, 1
+    ld e, a
+    ld a, d
+    ld b, e
+    call GetBgTileAtXY
+    call IsTileSolid
+    ret z
+
+    ld a, c
+    add a, 13
+    ld d, a
+    ld a, b
+    add a, 1
     ld e, a
     ld a, d
     ld b, e
