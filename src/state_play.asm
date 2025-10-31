@@ -16,7 +16,6 @@ EXPORT Play_Enter, Play_Update, Play_HandleSelect
 ; Se ejecuta una sola vez al entrar al nivel
 Play_Enter::
     call LoadLevelCurrent
-    call InitSprites
     ret
 
 ; -----------------------------------
