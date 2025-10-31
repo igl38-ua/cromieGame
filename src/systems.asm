@@ -5,12 +5,9 @@ INCLUDE "assets/sprites/jewmbo.z80"
 SECTION "Systems", ROM0
 EXPORT ReadInput, UpdateMovement, UpdateRender, InitSprites
 
-
-; Configuración de tiles 
+; -------------------- Configuración de tiles --------------------
 DEF JEWMBO_VRAM_ADDR EQU $8200
 DEF TILE_BASE        EQU ((JEWMBO_VRAM_ADDR - $8000) / 16)
-
-; Cada pose ocupa 4 tiles (2x2)
 DEF JEWMBO_SET_SIZE  EQU 4
 
 ; Índices para cada animación
@@ -20,42 +17,58 @@ DEF TILE_RUNR2_BASE  EQU TILE_BASE + (2 * JEWMBO_SET_SIZE)   ; $28–$2B
 DEF TILE_RUNL1_BASE  EQU TILE_BASE + (3 * JEWMBO_SET_SIZE)   ; $2C–$2F
 DEF TILE_RUNL2_BASE  EQU TILE_BASE + (4 * JEWMBO_SET_SIZE)   ; $30–$33
 
-; Variables 
+; -------------------- Variables --------------------
 SECTION "Vars", WRAM0
 posX:            DS 1
 posY:            DS 1
 contador:        DS 1
-joypadActual:    DS 1
+joypadActual:    DS 1        ; nibble: bit0=Right,1=Left,2=Up,3=Down (1=pressed)
 animFrame:       DS 1
-animDir:         DS 1      ; 0 = quieto, 1 = derecha, 2 = izquierda
-velY:            DS 1
-onGround:        DS 1      ; 0/1 si está tocando el suelo
-
+animDir:         DS 1        ; 0 = idle, 1 = derecha, 2 = izquierda
+velY:            DS 1        ; signed
+onGround:        DS 1        ; 0/1
+vSteps:          DS 1        ; contador interno integración por píxel
 
 SECTION "SystemsCode", ROM0
 
-; -------------------- Lectura de entrada --------------------
+; ==============================================================
+; ReadInput  (A mapeado a UP para compartir lógica)
+; ==============================================================
 ReadInput::
+    ; --- D-Pad (P14=0) ---
     ld   a, $20
     ldh  [rP1], a
     ldh  a, [rP1]
     ldh  a, [rP1]
     cpl
     and  %00001111
+    ld   b, a
+
+    ; --- Botones (P15=0) ---
+    ld   a, $10
+    ldh  [rP1], a
+    ldh  a, [rP1]
+    ldh  a, [rP1]
+    cpl
+    and  %00001111           ; bit0 = A
+    bit  0, a
+    jr   z, .noA
+    set  2, b                ; A -> UP
+.noA:
+    ld   a, $30
+    ldh  [rP1], a
+
+    ld   a, b
     ld   [joypadActual], a
     ret
 
-; -------------------- Movimiento y física --------------------
+; ==============================================================
+; UpdateMovement  (gravedad invertible con UP/A)
+; ==============================================================
 UpdateMovement::
-
+    ; animación cada 8 frames
     ld   hl, contador
     inc  [hl]
-
-    ld   a, [joypadActual]
-    or   a
-    jp   z, .no_input
-
-    ; animación cada 8 frames
     ld   a, [contador]
     and  %00000111
     jr   nz, .skip_anim
@@ -64,18 +77,19 @@ UpdateMovement::
     ld   a, [hl]
     and  1
     ld   [hl], a
-
 .skip_anim:
-    ; ---------------- Derecha ----------------
+
+    ; ---------- Horizontal ----------
     ld   a, [joypadActual]
+
+    ; Right
     bit  0, a
     jr   z, .chkLeft
-
     ld   a, [posX]
     inc  a
-    ld   c, a
+    ld   c, a                 ; x tentativa
     ld   a, [posY]
-    ld   b, a
+    ld   b, a                 ; y actual
     call TestAabbRight16
     jr   z, .blockRight
     ld   hl, posX
@@ -88,16 +102,15 @@ UpdateMovement::
     ld   [animDir], a
     jr   .after_hmove
 
-    ; ---------------- Izquierda ----------------
 .chkLeft:
+    ; Left
     bit  1, a
-    jr   z, .no_input
-
+    jr   z, .no_hmove
     ld   a, [posX]
     dec  a
-    ld   c, a
+    ld   c, a                 ; x tentativa
     ld   a, [posY]
-    ld   b, a
+    ld   b, a                 ; y actual
     call TestAabbLeft16
     jr   z, .blockLeft
     ld   hl, posX
@@ -110,97 +123,129 @@ UpdateMovement::
     ld   [animDir], a
     jr   .after_hmove
 
-.no_input:
+.no_hmove:
     xor  a
     ld   [animDir], a
-
 .after_hmove:
 
-    ;;  Salto + gravedad + integración por píxel 
+    ; ---------- Gravedad (invertida con UP/A) ----------
+    ld   a, GRAVITY
+    ld   d, a                 ; d = +GRAVITY
     ld   a, [joypadActual]
-    bit  2, a                ; Up
-    jr   z, .no_jump_input
-    ld   a, [onGround]
-    or   a
-    jr   z, .no_jump_input
-    ld   a, JUMP_SPEED
-    ld   [velY], a
-    xor  a
-    ld   [onGround], a
-.no_jump_input:
-
-    ld   a, [velY]
-    add  a, GRAVITY
-    cp   TERMINAL_SPEED + 1
-    jr   c, .no_clamp_pos
-    ld   a, TERMINAL_SPEED
-.no_clamp_pos:
-    ld   [velY], a
-
-    ld   a, [velY]
-    or   a
-    jr   z, .done_vertical
-
-    ld   c, a
-    bit  7, c
-    jr   z, .falling
-
-.rising:
-    ld   a, c
+    bit  2, a                 ; UP?
+    jr   z, .grav_ok
+    ld   a, d
     cpl
     inc  a
-    ld   b, a
-.rise_step:
+    ld   d, a                 ; d = -GRAVITY
+.grav_ok:
+
+    ; velY += d  (clamp [-TERM, +TERM])
+    ld   a, [velY]
+    add  a, d
+    ld   c, a                 ; c = nueva vel
+    ld   a, TERMINAL_SPEED
+    cpl
+    inc  a
+    ld   e, a                 ; e = -TERM
+    bit  7, c
+    jr   z, .clamp_pos
+    ld   a, c
+    cp   e
+    jr   nc, .store_vel
+    ld   a, e
+    jr   .store_vel
+.clamp_pos:
+    ld   a, c
+    cp   TERMINAL_SPEED + 1
+    jr   c, .store_vel
+    ld   a, TERMINAL_SPEED
+.store_vel:
+    ld   [velY], a
+    bit  7, a
+    jr   z, .cont_vert
+    xor  a
+    ld   [onGround], a
+.cont_vert:
+
+    ; ---------- Integración vertical por píxel (usa vSteps) ----------
+    ld   a, [velY]
+    or   a
+    jr   z, .after_vmove
+
+    bit  7, a
+    jr   z, .start_fall
+
+    ; --- SUBIR ---
+    cpl
+    inc  a                   ; a = -velY
+    ld   [vSteps], a
+.rise_loop:
+    ld   a, [vSteps]
+    or   a
+    jr   z, .after_vmove
+
     ld   a, [posY]
-    dec  a
+    dec  a                   ; y tentativa
     ld   d, a
     ld   a, [posX]
-    ld   c, a
-    ld   b, d
+    ld   e, a
+    ld   b, d                ; B=y
+    ld   c, e                ; C=x
     call TestAabbUp16
     jr   z, .hit_top
+
     ld   hl, posY
     dec  [hl]
-    dec  b
-    jr   nz, .rise_step
-    jr   .done_vertical
+    ld   hl, vSteps
+    dec  [hl]
+    jr   .rise_loop
+
 .hit_top:
     xor  a
     ld   [velY], a
-    jr   .done_vertical
+    jr   .after_vmove
 
-.falling:
-    ld   b, c
-.fall_step:
+    ; --- CAER ---
+.start_fall:
+    ld   [vSteps], a         ; a=+velY
+.fall_loop:
+    ld   a, [vSteps]
+    or   a
+    jr   z, .after_vmove
+
     ld   a, [posY]
-    inc  a
+    inc  a                   ; y tentativa
     ld   d, a
     ld   a, [posX]
-    ld   c, a
-    ld   b, d
+    ld   e, a
+    ld   b, d                ; B=y
+    ld   c, e                ; C=x
     call TestAabbDown16
     jr   z, .hit_floor
+
     ld   hl, posY
     inc  [hl]
-    dec  b
-    jr   nz, .fall_step
-    jr   .done_vertical
+    ld   hl, vSteps
+    dec  [hl]
+    jr   .fall_loop
+
 .hit_floor:
     xor  a
     ld   [velY], a
     inc  a
     ld   [onGround], a
 
-.done_vertical:
-    ;  detección de puerta, tile $05
+.after_vmove:
+    ; Meta (tile $05)
     call CheckDoorCollision
-
-.done_move:
     ret
 
-; Detecta si el jugador toca una puerta
+; ==============================================================
+; Detección de puerta / meta
+; ==============================================================
 CheckDoorCollision::
-    ; derecha: (x+14,y+2) y (x+14,y+13)
+    ; derecha
     ld   a, [posX]
     add  14
     ld   c, a
@@ -218,8 +263,7 @@ CheckDoorCollision::
     call GetBgTileAtXY
     cp   TILE_DOOR
     jr   z, .hitDoor
-
-    ; izquierda: (x+1,y+2) y (x+1,y+13)
+    ; izquierda
     ld   a, [posX]
     add  1
     ld   c, a
@@ -237,8 +281,7 @@ CheckDoorCollision::
     call GetBgTileAtXY
     cp   TILE_DOOR
     jr   z, .hitDoor
-
-    ; suelo: (x+2,y+15) y (x+13,y+15)
+    ; suelo
     ld   a, [posX]
     add  2
     ld   c, a
@@ -256,8 +299,7 @@ CheckDoorCollision::
     call GetBgTileAtXY
     cp   TILE_DOOR
     jr   z, .hitDoor
-
-    ; techo: (x+2,y+1) y (x+13,y+1)
+    ; techo
     ld   a, [posX]
     add  2
     ld   c, a
@@ -279,14 +321,16 @@ CheckDoorCollision::
     call NextLevel
     ret
 
-;  -------------------- Render --------------------
+; ==============================================================
+; Render (2 sprites 8x8)
+; ==============================================================
 UpdateRender::
     call wait_vBlank
 
-    ld a, [posX]
-    ld [wPlayerX], a
-    ld a, [posY]
-    ld [wPlayerY], a
+    ld   a, [posX]
+    ld   [wPlayerX], a
+    ld   a, [posY]
+    ld   [wPlayerY], a
 
     ld   a, [wPlayerY]
     add  16
@@ -298,7 +342,6 @@ UpdateRender::
     ld   a, [animDir]
     or   a
     jr   z, .idle
-
     cp   1
     jr   z, .dirRight
     cp   2
@@ -356,20 +399,22 @@ UpdateRender::
     call FlushOAM_HRAM
     ret
 
+; ==============================================================
 ; InitSprites
+; ==============================================================
 InitSprites::
     call apagar_LCD
     
     ldh  a,[rLCDC]
     res  5,a          ; WINDOW OFF
-    set  4,a          ; BG/Win tile data = $8000 (no modo $8800 firmado)
-    res  3,a          ; BG map = $9800 (no $9C00)
+    set  4,a          ; BG/Win tile data = $8000 (unsigned)
+    res  3,a          ; BG map = $9800
     ldh  [rLCDC],a
 
     xor  a
     ldh  [rSCX],a     ; sin scroll
     ldh  [rSCY],a
-    ldh  [rWX],a      ; por si acaso, ventana lejos
+    ldh  [rWX],a
     ldh  [rWY],a
 
     ; estado inicial
@@ -383,11 +428,14 @@ InitSprites::
     ld   [animDir], a
     ld   [velY], a
     ld   [onGround], a
+    ld   [vSteps], a
 
+    ; paletas
     ld   a, %11100100
     ldh  [rBGP], a
     ldh  [rOBP0], a
 
+    ; carga tiles del sprite a VRAM
     ld   hl, jewmbo
     ld   de, JEWMBO_VRAM_ADDR
     ld   b, 20
@@ -404,6 +452,7 @@ InitSprites::
     dec  b
     jr   nz, .copy_tile_loop
 
+    ; limpia HRAM ShadowOAM
     ld   hl, HRAMShadowOAM
     ld   b, 8
     xor  a
@@ -413,8 +462,10 @@ InitSprites::
     jr   nz, .clear_hram
     ret
 
-
-; Helpers de colisión con el BG 
+; ==============================================================
+; Helpers de colisión con BG ($9800)
+;   Entrada: A=x(px), B=y(px) → Salida: A=tile id
+; ==============================================================
 GetBgTileAtXY::
     ld   e, a
     ld   d, b
@@ -427,18 +478,18 @@ GetBgTileAtXY::
     ld   c, e
     srl  c
     srl  c
-    srl  c
+    srl  c                  ; xtile
     ld   a, d
     srl  a
     srl  a
-    srl  a
+    srl  a                  ; ytile
     ld   h, 0
     ld   l, a
-    add  hl, hl
-    add  hl, hl
-    add  hl, hl
-    add  hl, hl
-    add  hl, hl
+    add  hl, hl             ; *2
+    add  hl, hl             ; *4
+    add  hl, hl             ; *8
+    add  hl, hl             ; *16
+    add  hl, hl             ; *32
     ld   a, l
     add  a, c
     ld   l, a
@@ -450,115 +501,157 @@ GetBgTileAtXY::
     ld   a, [hl]
     ret
 
+; ==============================================================
+; Sólido: TILE_SOLID ($01) → Z=1 si choca
+; ==============================================================
 IsTileSolid::
     cp   TILE_SOLID
     ret
 
-; Colisiones 
+; --- AABB 16x16 contra BG (Z si BLOQUEA) ---
+; IMPORTANTE: GetBgTileAtXY destruye C → hay que preservar BC
+
 TestAabbRight16::
-    ld a, c
-    add a, 14
-    ld d, a
-    ld a, b
-    add a, 2
-    ld e, a
-    ld a, d
-    ld b, e
+    ; Entrada: C=x, B=y  | Puntos: (x+14, y+2) y (x+14, y+13)
+    push bc
+    ; 1er punto
+    ld   a, c
+    add  a, 14
+    ld   d, a
+    ld   a, b
+    add  a, 2
+    ld   e, a
+    ld   a, d
+    ld   b, e
     call GetBgTileAtXY
     call IsTileSolid
-    ret z
-
-    ld a, c
-    add a, 14
-    ld d, a
-    ld a, b
-    add a, 13
-    ld e, a
-    ld a, d
-    ld b, e
+    jr   z, .solidR
+    ; 2º punto (restaurar BC antes de recalcular)
+    pop  bc
+    push bc
+    ld   a, c
+    add  a, 14
+    ld   d, a
+    ld   a, b
+    add  a, 13
+    ld   e, a
+    ld   a, d
+    ld   b, e
     call GetBgTileAtXY
     call IsTileSolid
-    ret z
-    or a
+    jr   z, .solidR
+    pop  bc
+    or   1            ; libre → Z=0
     ret
-
-TestAabbDown16::
-    ld a, c
-    add a, 2
-    ld d, a
-    ld a, b
-    add a, 15
-    ld e, a
-    ld a, d
-    ld b, e
-    call GetBgTileAtXY
-    call IsTileSolid
-    ret z
-
-    ld a, c
-    add a, 13
-    ld d, a
-    ld a, b
-    add a, 15
-    ld e, a
-    ld a, d
-    ld b, e
-    call GetBgTileAtXY
-    call IsTileSolid
-    ret z
-    or a
-    ret
-
-TestAabbUp16::
-    ld a, c
-    add a, 2
-    ld d, a
-    ld a, b
-    add a, 1
-    ld e, a
-    ld a, d
-    ld b, e
-    call GetBgTileAtXY
-    call IsTileSolid
-    ret z
-
-    ld a, c
-    add a, 13
-    ld d, a
-    ld a, b
-    add a, 1
-    ld e, a
-    ld a, d
-    ld b, e
-    call GetBgTileAtXY
-    call IsTileSolid
-    ret z
-    or a
-    ret
+.solidR:
+    pop  bc
+    ret  z
 
 TestAabbLeft16::
-    ld a, c
-    add a, 1
-    ld d, a
-    ld a, b
-    add a, 2
-    ld e, a
-    ld a, d
-    ld b, e
+    ; Entrada: C=x, B=y  | Puntos: (x+1, y+2) y (x+1, y+13)
+    push bc
+    ; 1er punto
+    ld   a, c
+    add  a, 1
+    ld   d, a
+    ld   a, b
+    add  a, 2
+    ld   e, a
+    ld   a, d
+    ld   b, e
     call GetBgTileAtXY
     call IsTileSolid
-    ret z
-
-    ld a, c
-    add a, 1
-    ld d, a
-    ld a, b
-    add a, 13
-    ld e, a
-    ld a, d
-    ld b, e
+    jr   z, .solidL
+    ; 2º punto
+    pop  bc
+    push bc
+    ld   a, c
+    add  a, 1
+    ld   d, a
+    ld   a, b
+    add  a, 13
+    ld   e, a
+    ld   a, d
+    ld   b, e
     call GetBgTileAtXY
     call IsTileSolid
-    ret z
-    or a
+    jr   z, .solidL
+    pop  bc
+    or   1
     ret
+.solidL:
+    pop  bc
+    ret  z
+
+TestAabbUp16::
+    ; Entrada: C=x, B=y  | Puntos: (x+2, y+1) y (x+13, y+1)
+    push bc
+    ; 1er punto
+    ld   a, c
+    add  a, 2
+    ld   d, a
+    ld   a, b
+    add  a, 1
+    ld   e, a
+    ld   a, d
+    ld   b, e
+    call GetBgTileAtXY
+    call IsTileSolid
+    jr   z, .solidU
+    ; 2º punto
+    pop  bc
+    push bc
+    ld   a, c
+    add  a, 13
+    ld   d, a
+    ld   a, b
+    add  a, 1
+    ld   e, a
+    ld   a, d
+    ld   b, e
+    call GetBgTileAtXY
+    call IsTileSolid
+    jr   z, .solidU
+    pop  bc
+    or   1
+    ret
+.solidU:
+    pop  bc
+    ret  z
+
+TestAabbDown16::
+    ; Entrada: C=x, B=y  | Puntos: (x+2, y+15) y (x+13, y+15)
+    push bc
+    ; 1er punto
+    ld   a, c
+    add  a, 2
+    ld   d, a
+    ld   a, b
+    add  a, 15
+    ld   e, a
+    ld   a, d
+    ld   b, e
+    call GetBgTileAtXY
+    call IsTileSolid
+    jr   z, .solidD
+    ; 2º punto
+    pop  bc
+    push bc
+    ld   a, c
+    add  a, 13
+    ld   d, a
+    ld   a, b
+    add  a, 15
+    ld   e, a
+    ld   a, d
+    ld   b, e
+    call GetBgTileAtXY
+    call IsTileSolid
+    jr   z, .solidD
+    pop  bc
+    or   1
+    ret
+.solidD:
+    pop  bc
+    ret  z
+
