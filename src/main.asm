@@ -1,4 +1,3 @@
-; ===== main.asm =====
 INCLUDE "include/hw.inc"
 INCLUDE "include/constants.inc"
 
@@ -12,16 +11,13 @@ wLevelIdx:  ds 1
 SECTION "Main", ROM0
 EXPORT main
 
-; Usaremos Play_HandleSelect desde state_play.asm
-; (no hace falta IMPORT en RGBDS, basta con que esté EXPORT allí)
-
 main::
     call Init
 
-    ; Entramos en el menú de inicio
+    ; Menú de inicio
     call Title_Enter 
     xor  a 
-    ld   [wGameState], a   ; STATE_TITLE = 0 
+    ld   [wGameState], a
 
 .loop
     call ReadInput
@@ -30,8 +26,6 @@ main::
     cp   STATE_TITLE
     jr   z, .doTitle 
 
-    ; --- STATE_PLAY ---
-    ; Detecta SELECT (flanco) para cambiar de nivel con LCD OFF/ON
     call Play_HandleSelect
     call Play_Update
 
@@ -39,16 +33,13 @@ main::
     call Title_Update
     jp   .loop
 
-; ---------------------------------------------------------------------------
-; Copia 20x18 bytes desde _MapaBase a $9800, saltando 12 por fila (32-20)
-; ---------------------------------------------------------------------------
 SECTION "DrawMapaBase", ROM0
 DrawMapaBase::
-    ld   hl, _MapaBase        ; origen (definido en MapaBase.rgbds.asm)
-    ld   de, $9800            ; destino (BG map 0)
-    ld   b, 18                ; 18 filas
+    ld   hl, _MapaBase
+    ld   de, $9800
+    ld   b, 18
 .fila:
-    ld   c, 20                ; 20 columnas
+    ld   c, 20
 .col:
     ld   a, [hl+]
     ld   [de], a
@@ -56,7 +47,6 @@ DrawMapaBase::
     dec  c
     jr   nz, .col
 
-    ; saltar 12 posiciones hasta inicio de la siguiente fila de BG
     ld   a, e
     add  a, 12
     ld   e, a
@@ -67,9 +57,8 @@ DrawMapaBase::
     jr   nz, .fila
     ret
 
-; ---------------------------------------------------------------------------
+
 ; Tiles base mínimos para que el mapa se vea (índices 01, 06 y 07)
-; ---------------------------------------------------------------------------
 SECTION "DummyBGTiles", ROM0
 Tile01::
 REPT 16
@@ -85,7 +74,6 @@ Tile07::
 REPT 16
     db $55
 ENDR
-; (Alternativa: ds 16, $FF / ds 16, $AA / ds 16, $55)
 
 SECTION "LoadBaseTiles", ROM0
 LoadBaseTiles::
@@ -123,22 +111,16 @@ LoadBaseTiles::
     jr  nz,.copy07
     ret
 
-; ---------------------------------------------------------------------------
-; Inicialización
-; ---------------------------------------------------------------------------
+
+;  -------------------- Inicialización --------------------
 SECTION "Init", ROM0
 Init::
-    ; 1) LCD OFF antes de tocar VRAM
-    call apagar_LCD            ; debe poner bit7(LCDC)=0 y esperar si hace falta
-
-    ; 2) Limpia OAM
+    call apagar_LCD
     call limpiar_OAM
 
-    ; 3) Paleta de fondo y sprites
     ld   a, %11100100
     ldh  [rBGP], a             ; $FF47
     ldh  [rOBP0], a            ; $FF48
     ldh  [rOBP1], a            ; $FF49
-
 
     ret

@@ -1,4 +1,3 @@
-; --- registros HW Game Boy ---
 DEF rP1   EQU $FF00
 DEF rLCDC EQU $FF40
 DEF rSTAT EQU $FF41

@@ -4,11 +4,6 @@ EXPORT _MapaBase, MapaBaseEnd
 DEF MapaBaseWidth  = 20
 DEF MapaBaseHeight = 18
 DEF MapaBaseBank   = 0
-; Convención:
-; $01 = fondo oscuro
-; $00 = plataforma clara
-; $02,$03,$04,$05 = puerta (TL,TR,BL,BR)
-; $06 = pinchos (tile gráfico que definas)
 
 SECTION "Mapa Base", ROM0
 _MapaBase::

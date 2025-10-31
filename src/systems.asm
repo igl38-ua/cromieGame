@@ -6,7 +6,7 @@ SECTION "Systems", ROM0
 EXPORT ReadInput, UpdateMovement, UpdateRender, InitSprites
 
 
-; --- Configuración de tiles ---
+; Configuración de tiles 
 DEF JEWMBO_VRAM_ADDR EQU $8200
 DEF TILE_BASE        EQU ((JEWMBO_VRAM_ADDR - $8000) / 16)
 
@@ -20,7 +20,7 @@ DEF TILE_RUNR2_BASE  EQU TILE_BASE + (2 * JEWMBO_SET_SIZE)   ; $28–$2B
 DEF TILE_RUNL1_BASE  EQU TILE_BASE + (3 * JEWMBO_SET_SIZE)   ; $2C–$2F
 DEF TILE_RUNL2_BASE  EQU TILE_BASE + (4 * JEWMBO_SET_SIZE)   ; $30–$33
 
-; --- Variables (player local a este sistema) ---
+; Variables 
 SECTION "Vars", WRAM0
 posX:            DS 1
 posY:            DS 1
@@ -28,13 +28,13 @@ contador:        DS 1
 joypadActual:    DS 1
 animFrame:       DS 1
 animDir:         DS 1      ; 0 = quieto, 1 = derecha, 2 = izquierda
-velY:            DS 1      ; velocidad vertical (signed)
+velY:            DS 1
 onGround:        DS 1      ; 0/1 si está tocando el suelo
 
 
 SECTION "SystemsCode", ROM0
-; -----------------------
-; Lectura de entrada
+
+; -------------------- Lectura de entrada --------------------
 ReadInput::
     ld   a, $20
     ldh  [rP1], a
@@ -45,8 +45,7 @@ ReadInput::
     ld   [joypadActual], a
     ret
 
-; -----------------------
-; Movimiento y física
+; -------------------- Movimiento y física --------------------
 UpdateMovement::
 
     ld   hl, contador
@@ -117,7 +116,7 @@ UpdateMovement::
 
 .after_hmove:
 
-    ;; === Física vertical: salto + gravedad + integración por píxel ===
+    ;;  Salto + gravedad + integración por píxel 
     ld   a, [joypadActual]
     bit  2, a                ; Up
     jr   z, .no_jump_input
@@ -130,7 +129,6 @@ UpdateMovement::
     ld   [onGround], a
 .no_jump_input:
 
-    ; v = clamp(v + GRAVITY, -128..TERMINAL_SPEED)
     ld   a, [velY]
     add  a, GRAVITY
     cp   TERMINAL_SPEED + 1
@@ -139,7 +137,6 @@ UpdateMovement::
 .no_clamp_pos:
     ld   [velY], a
 
-    ; Integración por pasos de 1 px según el signo de velY
     ld   a, [velY]
     or   a
     jr   z, .done_vertical
@@ -195,16 +192,13 @@ UpdateMovement::
     ld   [onGround], a
 
 .done_vertical:
-
-    ; ---- detección de puerta (tile $05) ----
+    ;  detección de puerta, tile $05
     call CheckDoorCollision
 
 .done_move:
     ret
 
-; ---------------------------------------------
-; Detecta si el jugador toca una puerta ($05)
-; Chequea los 4 bordes del AABB 16x16 (mismas sondas que colisión)
+; Detecta si el jugador toca una puerta
 CheckDoorCollision::
     ; derecha: (x+14,y+2) y (x+14,y+13)
     ld   a, [posX]
@@ -285,9 +279,7 @@ CheckDoorCollision::
     call NextLevel
     ret
 
-
-; -------------------------------------------------
-; Render
+;  -------------------- Render --------------------
 UpdateRender::
     call wait_vBlank
 
@@ -364,8 +356,6 @@ UpdateRender::
     call FlushOAM_HRAM
     ret
 
-
-; -------------------------------------------------
 ; InitSprites
 InitSprites::
     call apagar_LCD
@@ -424,8 +414,7 @@ InitSprites::
     ret
 
 
-; -------------------------------------------------
-; === Helpers de colisión con el BG ===
+; Helpers de colisión con el BG 
 GetBgTileAtXY::
     ld   e, a
     ld   d, b
@@ -465,7 +454,7 @@ IsTileSolid::
     cp   TILE_SOLID
     ret
 
-; === Colisiones ===
+; Colisiones 
 TestAabbRight16::
     ld a, c
     add a, 14

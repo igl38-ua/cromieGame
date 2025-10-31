@@ -1,4 +1,3 @@
-; ===== src/ecs.asm =====
 INCLUDE "include/constants.inc"
 
 SECTION "ECS", WRAM0

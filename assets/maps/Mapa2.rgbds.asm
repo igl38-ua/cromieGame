@@ -1,11 +1,3 @@
-; ===== assets/maps/mapa1.rgbds.asm =====
-; Mapa 20x18 según imagen
-; Convención:
-; $00 = fondo
-; $01 = azul (borde/suelo)
-; $05 = verde
-; $06 = rojo
-
 DEF Mapa2Width  = 20
 DEF Mapa2Height = 18
 DEF Mapa2Bank   = 0

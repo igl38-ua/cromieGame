@@ -1,17 +1,13 @@
-; ===== src/state_title.asm =====
 INCLUDE "include/hw.inc"
 INCLUDE "include/constants.inc"
 
 SECTION "Game State Vars", WRAM0
-; Variables de entrada para detectar flanco
 wKeysCur:   ds 1
 wKeysPrev:  ds 1
-wKeysJP:    ds 1            ; just pressed
+wKeysJP:    ds 1
 
 SECTION "Title State", ROM0
 EXPORT Title_Enter, Title_Update
-
-; Base para los tiles de la fuente de título
 DEF FONT_BASE = $20
 DEF T_SPACE   = FONT_BASE + 0
 DEF T_A       = FONT_BASE + 1
@@ -22,11 +18,7 @@ DEF T_S       = FONT_BASE + 5
 DEF T_T       = FONT_BASE + 6
 DEF T_U       = FONT_BASE + 7
 
-; ------------------------
-; Dibuja "PULSA START" centrado en la fila 8 (0..17) del BG
-; ==============================
-; Title_Enter – versión simplificada
-; ==============================
+
 Title_Enter::
     call apagar_LCD
     call limpiar_OAM
@@ -44,10 +36,10 @@ Title_Enter::
     or   c
     jr   nz, .copyFont
 
-    ; === Limpiar pantalla ===
-/*     ld   hl, $9800        ; inicio del BG map
-    ld   bc, 32*32        ; 1024 tiles
-    ld   a, $20       ; usar tile de espacio (no 0)
+    ; Limpiar pantalla ¡
+/*     ld   hl, $9800        
+    ld   bc, 32*32
+    ld   a, $20
 .fill_bg:
     ld   [hli], a
     dec  bc
@@ -55,15 +47,14 @@ Title_Enter::
     or   c
     jr   nz, .fill_bg */
 
-    ; Limpia un área rectangular del BG map (solo el logo de Nintendo)
+    ; Limpia el logo de Nintendo
 
-    ld   a, $20           ; tile de espacio
-    ld   d, 5             ; 5 filas a limpiar
-    ld   e, 15            ; ancho (15 columnas)
-    ld   hl, $9800 + (6*32 + 4)   ; inicio: fila 6, col 4
-
+    ld   a, $20 
+    ld   d, 5
+    ld   e, 15 
+    ld   hl, $9800 + (6*32 + 4) 
 .clear_row:
-    push de               ; guarda D,E (contador filas y ancho)
+    push de
     push hl
     ld   c, e
 .clear_col:
@@ -72,14 +63,13 @@ Title_Enter::
     jr   nz, .clear_col
     pop  hl
     ld   bc, 32
-    add  hl, bc           ; siguiente fila (salta 32 tiles)
+    add  hl, bc 
     pop  de
     dec  d
     jr   nz, .clear_row
 
-
-    ; === Escribir texto ===
-    ld   hl, $9800 + (8*32 + 4)   ; fila 8, columna 4
+    ; Escribir PULSA START 
+    ld   hl, $9800 + (8*32 + 4)
     ld   de, TitleString
     ld   c, 11
 .writeTxt:
@@ -92,59 +82,47 @@ Title_Enter::
     call encender_LCD
     ret
 
-
-; ------------------------
-; Título: si START pulsado este frame -> entrar al juego
+; Título, si START pulsado entrar al juego
 Title_Update::
     call ReadButtonsJustPressed
     ld   a, [wKeysJP]
     and  KEY_START
     ret  z
 
-    ; Arrancamos siempre en el nivel 0
     xor  a
     ld   [wLevelIdx], a
 
-    ; START en flanco: cargar primer nivel y pasar a PLAY
     call Play_Enter
     ld   a, STATE_PLAY
     ld   [wGameState], a
     ret
 
-; ------------------------
-; Lee botones (grupo A/B/SELECT/START) y calcula just-pressed
-; Guarda:
-;   wKeysCur  = bits activos=1
-;   wKeysPrev = anterior
-;   wKeysJP   = wKeysCur & ~wKeysPrev
+
+; Lee botones (A/B/SELECT/START) y calcula just-pressed
 ReadButtonsJustPressed:
     ; Seleccionar botones (Start/Select/B/A)
     ld   a, $10
     ldh  [rP1], a
     ldh  a, [rP1]
-    ldh  a, [rP1]           ; 2ª lectura para estabilizar
-    cpl                     ; activo-al-alto
-    and  %00001111          ; nos quedamos con START..A
+    ldh  a, [rP1]
+    cpl 
+    and  %00001111
 
     ld   hl, wKeysPrev
-    ld   d, [hl]            ; d = prev
-    ld   [hl], a            ; wKeysPrev = cur
-    ld   [wKeysCur], a      ; wKeysCur = cur
+    ld   d, [hl] 
+    ld   [hl], a
+    ld   [wKeysCur], a 
 
-    ; wKeysJP = cur & ~prev
     ld   a, d
     cpl
     ld   hl, wKeysCur
     and  [hl]
     ld   [wKeysJP], a
 
-    ; Dejar el pad en reposo (no seleccionar ninguna fila: P15=1, P14=1)
     ld   a, $30
     ldh  [rP1], a
     ret
 
-; ------------------------
-; Datos: tiles 2bpp (plano bajo=1) para las letras que necesitamos
 TitleFontData::
     ; ' ' (espacio)
     DB $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
