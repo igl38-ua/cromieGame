@@ -5,6 +5,7 @@ INCLUDE "assets/sprites/jewmbo.z80"
 SECTION "Systems", ROM0
 EXPORT ReadInput, UpdateMovement, UpdateRender, InitSprites
 
+
 ; --- Configuración de tiles ---
 DEF JEWMBO_VRAM_ADDR EQU $8200
 DEF TILE_BASE        EQU ((JEWMBO_VRAM_ADDR - $8000) / 16)
@@ -293,11 +294,23 @@ UpdateRender::
 InitSprites::
     ; apaga LCD
     call apagar_LCD
+    
+    ldh  a,[rLCDC]
+    res  5,a          ; WINDOW OFF
+    set  4,a          ; BG/Win tile data = $8000 (no modo $8800 firmado)
+    res  3,a          ; BG map = $9800 (no $9C00)
+    ldh  [rLCDC],a
+
+    xor  a
+    ldh  [rSCX],a     ; sin scroll
+    ldh  [rSCY],a
+    ldh  [rWX],a      ; por si acaso, ventana lejos
+    ldh  [rWY],a
 
     ; estado inicial
-    ld   a, 40
+    ld   a, 120
     ld   [posX], a
-    ld   a, 50
+    ld   a, 108
     ld   [posY], a
     xor  a
     ld   [contador], a
