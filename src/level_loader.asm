@@ -12,6 +12,8 @@ EXPORT LoadLevelCurrent, NextLevel
 SECTION "LevelTable", ROM0
 LevelMaps:
     dw _Mapa1
+    dw _Mapa2
+    dw _Mapa3
     dw _MapaBase
     dw _MapaSegundoNivel
 
@@ -81,51 +83,17 @@ NextLevel::
 ; ----------------------------------------------------------
 CopyTilemap20x18_HL_to_9800::
     ld   de, $9800
-    ld   b, 18                  ; B = filas
-
+    ld   b, 18                  ; filas
 .row:
-    ld   c, 20                  ; C = columnas
-
+    ld   c, 20                  ; columnas
 .col:
-    ld   a, [hl+]               ; tile fuente
-    push af                     ; guardar A
-
-    ; ¿Mapa1? (wLevelIdx == 0) -> posibles columnas 9..10, filas 10..17
-    ld   a, [wLevelIdx]
-    or   a
-    jr   nz, .no_patch          ; *** IMPORTANTE: HAY QUE HACER pop af ***
-
-    ; Filas 10..17 -> cuando B en [8..1]
-    ld   a, b
-    cp   9
-    jr   nc, .no_patch_row
-
-    ; Columnas 9..10 -> C == 11 ó 10 en este punto
-    ld   a, c
-    cp   11
-    jr   z, .do_patch
-    cp   10
-    jr   z, .do_patch
-    jr   .no_patch_row
-
-.do_patch:
-    pop  af                     ; descarta tile original
-    ld   a, $01                 ; negro/oscuro
-    jr   .write_tile
-
-.no_patch_row:
-    pop  af                     ; usa tile original
-    jr   .write_tile
-
-.no_patch:
-    pop  af                     ; *** FIX: recuperar AF antes de escribir ***
-.write_tile:
+    ld   a, [hl+]
     ld   [de], a
     inc  de
     dec  c
     jr   nz, .col
 
-    ; salto de 12 hasta la próxima fila
+    ; saltar 12 hasta siguiente fila
     ld   a, e
     add  a, 12
     ld   e, a

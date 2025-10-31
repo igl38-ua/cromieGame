@@ -1,3 +1,5 @@
 INCLUDE "assets/maps/Mapa1.rgbds.asm"
+INCLUDE "assets/maps/Mapa2.rgbds.asm"
+INCLUDE "assets/maps/Mapa3.rgbds.asm"
 INCLUDE "assets/maps/MapaBase.rgbds.asm"
 INCLUDE "assets/maps/MapaSegundoNivel.rgbds.asm"

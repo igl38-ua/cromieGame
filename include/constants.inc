@@ -22,7 +22,7 @@ DEF KEY_UP    = %00000100
 DEF KEY_DOWN  = %00001000
 
 ; Número de niveles que tenemos
-DEF LEVEL_COUNT = 3 
+DEF LEVEL_COUNT = 5 
 
 ; ==== Collisions / Player ====
 DEF TILE_SOLID   EQU $01    ; paredes/suelo en los mapas

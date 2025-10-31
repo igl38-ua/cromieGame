@@ -140,12 +140,5 @@ Init::
     ldh  [rOBP0], a            ; $FF48
     ldh  [rOBP1], a            ; $FF49
 
-    ; 5) Estas llamadas ahora las hace LoadLevelCurrent/Play_Enter tras pulsar START
-    ; call LoadBaseTiles
-    ; call DrawMapaBase
-    ; xor  a
-    ; ldh  [rSCX], a
-    ; ldh  [rSCY], a
-    ; call InitSprites
-    ; call UpdateRender
+
     ret
