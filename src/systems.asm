@@ -109,6 +109,7 @@ UpdateMovement::
 .blockLeft:
     ld   a, 2
     ld   [animDir], a
+    jr   .after_hmove
 
 .no_input:
     xor  a
