@@ -26,6 +26,7 @@ DEF LEVEL_COUNT = 5
 
 ; ==== Collisions / Player ====
 DEF TILE_SOLID   EQU $01    ; paredes/suelo en los mapas
+DEF TILE_DOOR    EQU $05
 
 ; Dimensiones del jugador (hitbox del AABB usado en colisiones)
 DEF PLAYER_W     EQU 16
