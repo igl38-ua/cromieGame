@@ -12,7 +12,7 @@ SECTION "Title State", ROM0
 EXPORT Title_Enter, Title_Update
 
 ; Base para los tiles de la fuente de título
-DEF FONT_BASE = $10
+DEF FONT_BASE = $20
 DEF T_SPACE   = FONT_BASE + 0
 DEF T_A       = FONT_BASE + 1
 DEF T_L       = FONT_BASE + 2
@@ -24,11 +24,14 @@ DEF T_U       = FONT_BASE + 7
 
 ; ------------------------
 ; Dibuja "PULSA START" centrado en la fila 8 (0..17) del BG
+; ==============================
+; Title_Enter – versión simplificada
+; ==============================
 Title_Enter::
     call apagar_LCD
     call limpiar_OAM
 
-    ; 1) Cargar tiles de fuente en VRAM en $8000 + 16*FONT_BASE
+    ; Cargar tiles de fuente en VRAM
     ld   hl, TitleFontData
     ld   de, $8000 + (16 * FONT_BASE)
     ld   bc, TitleFontDataEnd - TitleFontData
@@ -41,19 +44,42 @@ Title_Enter::
     or   c
     jr   nz, .copyFont
 
-    ; 2) Limpiar BG map completo a tile 0 (esto puede causar artefactos)
-    ld   hl, $9800
-    ld   bc, 32*32
-    xor  a
-.clrBg:
+    ; === Limpiar pantalla ===
+/*     ld   hl, $9800        ; inicio del BG map
+    ld   bc, 32*32        ; 1024 tiles
+    ld   a, $20       ; usar tile de espacio (no 0)
+.fill_bg:
     ld   [hli], a
     dec  bc
     ld   a, b
     or   c
-    jr   nz, .clrBg
+    jr   nz, .fill_bg */
 
-    ; 3) Escribir "PULSA START" (11 chars) en fila 8, col 4
-    ld   hl, $9800 + (8*32 + 4)
+    ; Limpia un área rectangular del BG map (solo el logo de Nintendo)
+
+    ld   a, $20           ; tile de espacio
+    ld   d, 5             ; 5 filas a limpiar
+    ld   e, 15            ; ancho (15 columnas)
+    ld   hl, $9800 + (6*32 + 4)   ; inicio: fila 6, col 4
+
+.clear_row:
+    push de               ; guarda D,E (contador filas y ancho)
+    push hl
+    ld   c, e
+.clear_col:
+    ld   [hli], a
+    dec  c
+    jr   nz, .clear_col
+    pop  hl
+    ld   bc, 32
+    add  hl, bc           ; siguiente fila (salta 32 tiles)
+    pop  de
+    dec  d
+    jr   nz, .clear_row
+
+
+    ; === Escribir texto ===
+    ld   hl, $9800 + (8*32 + 4)   ; fila 8, columna 4
     ld   de, TitleString
     ld   c, 11
 .writeTxt:
@@ -65,6 +91,7 @@ Title_Enter::
 
     call encender_LCD
     ret
+
 
 ; ------------------------
 ; Título: si START pulsado este frame -> entrar al juego
