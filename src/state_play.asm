@@ -58,5 +58,5 @@ Play_HandleSelect::
     and  KEY_SELECT
     ret  z
 
-    call NextLevel
+    call LevelLoader
     ret
